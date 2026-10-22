@@ -181,7 +181,7 @@ Begin
     Workspace := GetWorkspace;
     If Workspace = Nil Then
     Begin
-        ShowMessage('Can not Access to Workspace!');
+        ShowMessage('Cannot access the workspace.');
         Exit;
     End;
 
@@ -189,7 +189,7 @@ Begin
     PCB_Board := PCBServer.GetCurrentPCBBoard;
     If PCB_Board = Nil Then
     Begin
-        ShowMessage('No Active PCB Document!');
+        ShowMessage('No active PCB document.');
         Exit;
     End;
 
@@ -197,7 +197,7 @@ Begin
     PCB_FileName := PCB_Board.FileName;
     If PCB_FileName = '' Then
     Begin
-        ShowMessage('PCB File not saved, please save it to continue!');
+        ShowMessage('Save the PCB file before continuing.');
         Exit;
     End;
 
@@ -352,7 +352,7 @@ begin
   PCB_Board := PCBServer.GetCurrentPCBBoard;
   if PCB_Board = nil then
   begin
-    ShowMessage('No PCB document is open!');
+    ShowMessage('No PCB document is open.');
     Exit;
   end;
   for i := FIRST_SUPPORTED_LAYER_INDEX to LAST_SUPPORTED_LAYER_INDEX do
@@ -766,7 +766,7 @@ begin
   // Save the board
   if not SaveCurrentPCB then Exit;
   
-  ShowMessage('Completed successfully!');
+  ShowMessage('Completed successfully.');
 end;
 
 // Event handler for the Save button - initiates the main processing
