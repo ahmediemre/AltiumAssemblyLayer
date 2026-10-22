@@ -12,17 +12,14 @@ type
     BrusaHyPowerAG: TRadioButton;               					// Toggles HyPower library selection
     LibSourceSelection_HyPower_Prod: TCheckBox; 					// Selects production library source
     LibSourceSelection_HyPower_DBLIB: TCheckBox;					// Selects database library source
-    LibSelection_BrusaElectronics: TRadioButton;					// Selects Brusa Electronics library
-    LibSourceSelection_BrusaElectronics: TCheckBox; 				// Enables Brusa Electronics source
-    LibSelection_BrusaICS: TRadioButton;        					// Selects Brusa ICS library
-    LibSourceSelection_BrusaICS: TCheckBox;     					// Enables Brusa ICS source
     LibSelection_Custom: TRadioButton;          					// Enables custom library configuration
     sourceLibrary_Save: TButton;                					// Triggers the main processing
     BOT_DES: TLabel;                           						// Bottom designator layer label
     BOT_ASM: TLabel;                           						// Bottom assembly layer label
     TOP_DES: TLabel;                           						// Top designator layer label
     TOP_ASM: TLabel;                           						// Top assembly layer label
-    LayerNumbers: TLabel;                      						// Layer numbers label
+    LayerNumbers: TLabel;                      						// Layer assignments label
+    ContactInfo: TLabel;
     topDesignatorSelection_ComboBox: TComboBox; 					// Top designator layer selection
     topAssemblySelection_ComboBox: TComboBox;   					// Top assembly layer selection
     bottomDesignatorSelection_ComboBox: TComboBox; 					// Bottom designator layer selection
@@ -32,8 +29,6 @@ type
     // Event Handlers
     procedure FormCreate(Sender: TObject);      					  // Initializes form
     procedure BrusaHyPowerAGClick(Sender: TObject); 				  // Handles HyPower selection
-    procedure LibSelection_BrusaElectronicsClick(Sender: TObject);    // Handles Brusa Electronics selection
-    procedure LibSelection_BrusaICSClick(Sender: TObject); 			  // Handles Brusa ICS selection
     procedure LibSelection_CustomClick(Sender: TObject); 			  // Handles custom selection
     procedure LibSourceSelection_HyPower_ProdClick(Sender: TObject);  // Handles production source selection
     procedure LibSourceSelection_HyPower_DBLIBClick(Sender: TObject); // Handles DB library source selection
@@ -210,10 +205,6 @@ End;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   FUpdatingLibrarySource := False;
-  LibSelection_BrusaElectronics.Enabled := False;
-  LibSourceSelection_BrusaElectronics.Enabled := False;
-  LibSelection_BrusaICS.Enabled := False;
-  LibSourceSelection_BrusaICS.Enabled := False;
   LibSelection_Custom.Checked := False;
   SetCustomLayerLabelsVisible(False);
   UpdateLibraryCheckboxes;
@@ -321,16 +312,6 @@ end;
 
 // Event handlers for UI elements
 procedure TForm1.BrusaHyPowerAGClick(Sender: TObject);
-begin
-  UpdateLibraryCheckboxes;
-end;
-
-procedure TForm1.LibSelection_BrusaElectronicsClick(Sender: TObject);
-begin
-  UpdateLibraryCheckboxes;
-end;
-
-procedure TForm1.LibSelection_BrusaICSClick(Sender: TObject);
 begin
   UpdateLibraryCheckboxes;
 end;
