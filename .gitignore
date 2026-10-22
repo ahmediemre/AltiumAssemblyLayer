@@ -1,0 +1,5 @@
+# Visual Studio local cache
+.vs/
+
+# Workspace-local Copilot instructions
+/.github/copilot-instructions.md
