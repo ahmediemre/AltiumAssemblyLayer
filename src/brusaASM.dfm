@@ -128,6 +128,7 @@ object Form1: TForm1
     Height = 17
     Caption = 'BRUSA_AltiumLib_Database'
     TabOrder = 7
+    OnClick = LibSourceSelection_HyPower_DBLIBClick
   end
   object LibSelection_BrusaElectronics: TRadioButton
     Left = 48

@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, System.Classes, Forms, Controls, StdCtrls, Dialogs,
-  PCB, PCBConst, Windows;
+  PCB, PCBConst;
 
 type
   TForm1 = class(TForm)
@@ -40,12 +40,13 @@ type
     procedure sourceLibrary_SaveClick(Sender: TObject); 			  // Main processing trigger
   private
     // Helper Methods
+    FUpdatingLibrarySource: Boolean;
     procedure UpdateLibraryCheckboxes;          					// Updates UI based on selections
     procedure SetCustomLayerLabelsVisible(Visible: Boolean); 		// Toggles custom layer UI
     procedure Toggle_HyPowerLibrary(Selected: string); 				// Manages HyPower library options
     procedure FillAllLayerCombos;              						// Populates layer selection comboboxes
     procedure UnlockAllComponents;             						// Unlocks all PCB components
-    procedure DeleteOnlyComponentDesignators;  						// Removes existing designators
+    procedure DeleteOnlyComponentDesignators(TopLayer, BottomLayer: Integer); // Removes existing designators
   public
   end;
 
@@ -56,39 +57,72 @@ implementation
 
 {$R *.dfm}
 
+const
+  SOURCE_TOP_LAYER = 61;
+  SOURCE_BOTTOM_LAYER = 62;
+  ASSEMBLY_TOP_LAYER = 66;
+  ASSEMBLY_BOTTOM_LAYER = 67;
+  DESIGNATOR_TOP_LAYER = 68;
+  DESIGNATOR_BOTTOM_LAYER = 69;
+  FIRST_SUPPORTED_LAYER_INDEX = 0;
+  FIRST_MECHANICAL_LAYER_INDEX = 32;
+  LAST_SUPPORTED_LAYER_INDEX = 150;
+  DESIGNATOR_INITIAL_HEIGHT_MILS = 60;
+  DESIGNATOR_MIN_HEIGHT_MILS = 10;
+  DESIGNATOR_SHRINK_FACTOR = 0.9;
+  ASSEMBLY_TRACK_WIDTH_MM = 0.1;
+
+function TryGetSelectedLayer(Combo: TComboBox; var Layer: Integer): Boolean;
+var
+  SeparatorPosition: Integer;
+begin
+  Result := False;
+  if (Combo = nil) or (Combo.ItemIndex < 0) then Exit;
+  SeparatorPosition := Pos('-', Combo.Text);
+  if SeparatorPosition <= 1 then Exit;
+  try
+    Layer := StrToInt(Trim(Copy(Combo.Text, 1, SeparatorPosition - 1)));
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
 procedure ProcessTracksOnLayer(Layer: TLayer; NewWidth: TCoord);
 var
   Board    : IPCB_Board;
   Iterator : IPCB_BoardIterator;
   Track    : IPCB_Track;
-  Modified : Integer;
 begin
   Board := PCBServer.GetCurrentPCBBoard;
   if Board = nil then Exit;
 
-  Modified := 0;
+  Iterator := nil;
   PCBServer.PreProcess;
 
   try
-    // Align all component ASM tracks track width, we shouldn't select and edit tracks and arcs at the same time!
     Iterator := Board.BoardIterator_Create;
-    Iterator.AddFilter_ObjectSet(MkSet(eTrackObject));
-    Iterator.AddFilter_LayerSet(MkSet(Layer));
-    Iterator.AddFilter_Method(eProcessAll);
+    try
+      Iterator.AddFilter_ObjectSet(MkSet(eTrackObject));
+      Iterator.AddFilter_LayerSet(MkSet(Layer));
+      Iterator.AddFilter_Method(eProcessAll);
 
-    Track := Iterator.FirstPCBObject;
-    while Track <> nil do
-    begin
-      Track.BeginModify;
-      Track.Selected := True; // Only select & modify tracks
-      Track.Width := NewWidth;
-      Track.EndModify;
-      Track.GraphicallyInvalidate;
-      Inc(Modified);
-      Track := Iterator.NextPCBObject;
+      Track := Iterator.FirstPCBObject;
+      while Track <> nil do
+      begin
+        Track.BeginModify;
+        try
+          Track.Width := NewWidth;
+        finally
+          Track.EndModify;
+        end;
+        Track.GraphicallyInvalidate;
+        Track := Iterator.NextPCBObject;
+      end;
+    finally
+      if Iterator <> nil then
+        Board.BoardIterator_Destroy(Iterator);
     end;
-    Board.BoardIterator_Destroy(Iterator);
-
   finally
     PCBServer.PostProcess;
   end;
@@ -100,67 +134,48 @@ var
   Board    : IPCB_Board;
   Iterator : IPCB_BoardIterator;
   Arc      : IPCB_Arc;
-  Modified : Integer;
 begin
   Board := PCBServer.GetCurrentPCBBoard;
   if Board = nil then Exit;
 
-  Modified := 0;
+  Iterator := nil;
   PCBServer.PreProcess;
 
   try
-  
     Iterator := Board.BoardIterator_Create;
-    Iterator.AddFilter_ObjectSet(MkSet(eArcObject));
-    Iterator.AddFilter_LayerSet(MkSet(Layer));
-    Iterator.AddFilter_Method(eProcessAll);
+    try
+      Iterator.AddFilter_ObjectSet(MkSet(eArcObject));
+      Iterator.AddFilter_LayerSet(MkSet(Layer));
+      Iterator.AddFilter_Method(eProcessAll);
 
-    Arc := Iterator.FirstPCBObject;
-    while Arc <> nil do
-    begin
-      Arc.BeginModify;
-      Arc.Selected := True; // select only arcs
-      Arc.LineWidth := NewWidth;
-      Arc.EndModify;
-      Arc.GraphicallyInvalidate;
-      Inc(Modified);
-      Arc := Iterator.NextPCBObject;
+      Arc := Iterator.FirstPCBObject;
+      while Arc <> nil do
+      begin
+        Arc.BeginModify;
+        try
+          Arc.LineWidth := NewWidth;
+        finally
+          Arc.EndModify;
+        end;
+        Arc.GraphicallyInvalidate;
+        Arc := Iterator.NextPCBObject;
+      end;
+    finally
+      if Iterator <> nil then
+        Board.BoardIterator_Destroy(Iterator);
     end;
-    Board.BoardIterator_Destroy(Iterator);
-
   finally
     PCBServer.PostProcess;
   end;
 end;
 
-procedure ClearSelections;
-var
-  Board    : IPCB_Board;
-  Iterator : IPCB_BoardIterator;
-  Prim     : IPCB_Primitive;
-begin
-  Board := PCBServer.GetCurrentPCBBoard;
-  if Board = nil then Exit;
-
-  Iterator := Board.BoardIterator_Create;
-  Iterator.AddFilter_Method(eProcessAll);
-
-  Prim := Iterator.FirstPCBObject;
-  while Prim <> nil do
-  begin
-    Prim.Selected := False;
-    Prim := Iterator.NextPCBObject;
-  end;
-  Board.BoardIterator_Destroy(Iterator);
-end;
-
-procedure SaveCurrentPCB;
+function SaveCurrentPCB: Boolean;
 Var
     PCB_Board     : IPCB_Board;
     Workspace     : IWorkspace;
     PCB_FileName  : String;
-    Document      : IDocument;
 Begin
+    Result := False;
     // Access to Altium workspace
     Workspace := GetWorkspace;
     If Workspace = Nil Then
@@ -189,10 +204,12 @@ Begin
     ResetParameters;
     AddStringParameter('ObjectKind', 'Document');
     RunProcess('WorkspaceManager:SaveObject');
+    Result := True;
 End;
 // Initializes the form and disables certain UI elements by default
 procedure TForm1.FormCreate(Sender: TObject);
 begin
+  FUpdatingLibrarySource := False;
   LibSelection_BrusaElectronics.Enabled := False;
   LibSourceSelection_BrusaElectronics.Enabled := False;
   LibSelection_BrusaICS.Enabled := False;
@@ -209,23 +226,29 @@ begin
   begin
     LibSourceSelection_HyPower_Prod.Enabled := True;
     LibSourceSelection_HyPower_DBLIB.Enabled := True;
-    SetCustomLayerLabelsVisible(False);
   end
   else
   begin
     LibSourceSelection_HyPower_Prod.Enabled := False;
-    LibSourceSelection_HyPower_Prod.Checked := False;
     LibSourceSelection_HyPower_DBLIB.Enabled := False;
-    LibSourceSelection_HyPower_DBLIB.Checked := False;
   end;
 
   if LibSelection_Custom.Checked then
   begin
     LibSourceSelection_HyPower_Prod.Enabled := False;
-    LibSourceSelection_HyPower_Prod.Checked := False;
     LibSourceSelection_HyPower_DBLIB.Enabled := False;
-    LibSourceSelection_HyPower_DBLIB.Checked := False;
     FillAllLayerCombos;
+  end;
+
+  if not BrusaHyPowerAG.Checked then
+  begin
+    FUpdatingLibrarySource := True;
+    try
+      LibSourceSelection_HyPower_Prod.Checked := False;
+      LibSourceSelection_HyPower_DBLIB.Checked := False;
+    finally
+      FUpdatingLibrarySource := False;
+    end;
   end;
   SetCustomLayerLabelsVisible(LibSelection_Custom.Checked);
 end;
@@ -247,12 +270,14 @@ end;
 // Toggles between HyPower library source options (PROD or DBLIB)
 procedure TForm1.Toggle_HyPowerLibrary(Selected: string);
 begin
-  LibSourceSelection_HyPower_Prod.OnClick := nil;
-  LibSourceSelection_HyPower_DBLIB.OnClick := nil;
-  if Selected = 'PROD' then
-    LibSourceSelection_HyPower_Prod.Checked := True
-  else
-    LibSourceSelection_HyPower_DBLIB.Checked := True;
+  if FUpdatingLibrarySource then Exit;
+  FUpdatingLibrarySource := True;
+  try
+    LibSourceSelection_HyPower_Prod.Checked := Selected = 'PROD';
+    LibSourceSelection_HyPower_DBLIB.Checked := Selected = 'DBLIB';
+  finally
+    FUpdatingLibrarySource := False;
+  end;
 end;
 
 // Populates all layer combo boxes with available PCB layers
@@ -273,13 +298,15 @@ begin
     ShowMessage('No PCB document is open!');
     Exit;
   end;
-  for i := 0 to 150 do
+  for i := FIRST_SUPPORTED_LAYER_INDEX to LAST_SUPPORTED_LAYER_INDEX do
   begin
     try
       LayerName := PCB_Board.LayerName(i);
-      if (LayerName = '') and (i >= 32) and (i <= 150) then
+      if (LayerName = '') and (i >= FIRST_MECHANICAL_LAYER_INDEX) and
+         (i <= LAST_SUPPORTED_LAYER_INDEX) then
         LayerName := PCB_Board.LayerStack.GetMechanicalLayerName(i);
-      if (Trim(LayerName) <> '') and (Trim(LayerName) <> 'No Layer') then
+      LayerName := Trim(LayerName);
+      if (LayerName <> '') and (LayerName <> 'No Layer') then
       begin
         Entry := Format('%d - %s', [i, LayerName]);
         topDesignatorSelection_ComboBox.Items.Add(Entry);
@@ -315,40 +342,48 @@ end;
 
 procedure TForm1.LibSourceSelection_HyPower_ProdClick(Sender: TObject);
 begin
-  Toggle_HyPowerLibrary('PROD');
+  if not FUpdatingLibrarySource then
+    Toggle_HyPowerLibrary('PROD');
 end;
 
 procedure TForm1.LibSourceSelection_HyPower_DBLIBClick(Sender: TObject);
 begin
-  Toggle_HyPowerLibrary('DBLIB');
+  if not FUpdatingLibrarySource then
+    Toggle_HyPowerLibrary('DBLIB');
 end;
 
-// Deletes manual text objects from layers 68 and 69
-procedure DeleteManualTextsOnLayers68_69(var ManualTextsDeleted: Integer);
+// Deletes manual text objects from the selected designator layers.
+procedure DeleteManualTextsOnDesignatorLayers(TopLayer, BottomLayer: Integer);
 var
   Board: IPCB_Board;
   Iterator: IPCB_BoardIterator;
   TextObj: IPCB_Text;
+  NextText: IPCB_Text;
 begin
   Board := PCBServer.GetCurrentPCBBoard;
   if Board = nil then Exit;
-  ManualTextsDeleted := 0;
+  Iterator := nil;
   PCBServer.PreProcess;
   try
     Iterator := Board.BoardIterator_Create;
-    Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
-    Iterator.AddFilter_LayerSet(MkSet(68, 69));
-    TextObj := Iterator.FirstPCBObject;
-    while TextObj <> nil do
-    begin
-      if (TextObj.Component = nil) and (not TextObj.IsDesignator) then
+    try
+      Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
+      Iterator.AddFilter_LayerSet(MkSet(TopLayer, BottomLayer));
+      TextObj := Iterator.FirstPCBObject;
+      while TextObj <> nil do
       begin
-        Board.RemovePCBObject(TextObj);
-        Inc(ManualTextsDeleted);
+        NextText := Iterator.NextPCBObject;
+        if (TextObj.Component = nil) and (not TextObj.IsDesignator) then
+        begin
+          Board.RemovePCBObject(TextObj);
+          PCBServer.DestroyPCBObject(TextObj);
+        end;
+        TextObj := NextText;
       end;
-      TextObj := Iterator.NextPCBObject;
+    finally
+      if Iterator <> nil then
+        Board.BoardIterator_Destroy(Iterator);
     end;
-    Board.BoardIterator_Destroy(Iterator);
   finally
     PCBServer.PostProcess;
   end;
@@ -360,12 +395,11 @@ var
   Footprint: String;
 begin
   Result := False;
-  try
-    Footprint := UpperCase(Component.Pattern);
-    if (Footprint = 'TESTPOINT_1MM') or (Footprint = 'TESTPOINT_0.8MM') or (UpperCase(Footprint) = 'TESTING-PCC_TESTPOINT_1MM')then
-      Result := True;
-  except
-  end;
+  if Component = nil then Exit;
+  Footprint := UpperCase(Component.Pattern);
+  Result := (Footprint = 'TESTPOINT_1MM') or
+    (Footprint = 'TESTPOINT_0.8MM') or
+    (Footprint = 'TESTING-PCC_TESTPOINT_1MM');
 end;
 
 // Checks if a component is from a Brusa library
@@ -374,99 +408,123 @@ var
   LibPath: String;
 begin
   Result := False;
+  if Component = nil then Exit;
+  LibPath := UpperCase(Component.SourceComponentLibrary);
+  Result := (Pos('BRUSA HYPOWER PROD', LibPath) > 0) or
+    (Pos('BRUSA_ALTIUMLIB_DATABASE', LibPath) > 0);
+end;
+
+// Clears designator text objects from the source layers.
+procedure ClearDesignatorsFromSourceLayers(Board: IPCB_Board; Component: IPCB_Component);
+var
+  Iterator: IPCB_GroupIterator;
+  TextObj: IPCB_Text;
+  NextText: IPCB_Text;
+begin
+  Iterator := Component.GroupIterator_Create;
   try
-    LibPath := UpperCase(Component.SourceComponentLibrary);
-    if Pos('BRUSA HYPOWER PROD', LibPath) > 0 then Result := True;
-  except
+    Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
+    Iterator.AddFilter_LayerSet(MkSet(SOURCE_TOP_LAYER, SOURCE_BOTTOM_LAYER));
+    TextObj := Iterator.FirstPCBObject;
+    while TextObj <> nil do
+    begin
+      NextText := Iterator.NextPCBObject;
+      if (TextObj.IsDesignator) or (TextObj.UnderlyingString = '.Designator') then
+      begin
+        Board.RemovePCBObject(TextObj);
+        Component.RemovePCBObject(TextObj);
+        PCBServer.DestroyPCBObject(TextObj);
+      end;
+      TextObj := NextText;
+    end;
+  finally
+    if Iterator <> nil then
+      Component.GroupIterator_Destroy(Iterator);
   end;
 end;
 
-// Clears designator text objects from layers 61 and 62
-procedure ClearDesignatorsFromSourceLayers(Board: IPCB_Board; Component: IPCB_Component; var ClearCount61, ClearCount62: Integer);
+// Clears non-designator text objects from the selected assembly layers.
+procedure ClearTextObjectsFromLayers(Board: IPCB_Board; Component: IPCB_Component; TopLayer, BottomLayer: Integer);
 var
   Iterator: IPCB_GroupIterator;
   TextObj: IPCB_Text;
+  NextText: IPCB_Text;
 begin
   Iterator := Component.GroupIterator_Create;
-  Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
-  Iterator.AddFilter_LayerSet(MkSet(61, 62));
-  TextObj := Iterator.FirstPCBObject;
-  while TextObj <> nil do
-  begin
-    if (TextObj.IsDesignator) or (TextObj.UnderlyingString = '.Designator') then
+  try
+    Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
+    Iterator.AddFilter_LayerSet(MkSet(TopLayer, BottomLayer));
+    TextObj := Iterator.FirstPCBObject;
+    while TextObj <> nil do
     begin
-      if TextObj.Layer = 61 then Inc(ClearCount61)
-      else Inc(ClearCount62);
-      Board.RemovePCBObject(TextObj);
-      Component.RemovePCBObject(TextObj);
-      PCBServer.DestroyPCBObject(TextObj);
+      NextText := Iterator.NextPCBObject;
+      if not (TextObj.IsDesignator or (TextObj.UnderlyingString = '.Designator')) then
+      begin
+        Board.RemovePCBObject(TextObj);
+        Component.RemovePCBObject(TextObj);
+        PCBServer.DestroyPCBObject(TextObj);
+      end;
+      TextObj := NextText;
     end;
-    TextObj := Iterator.NextPCBObject;
+  finally
+    if Iterator <> nil then
+      Component.GroupIterator_Destroy(Iterator);
   end;
-  Component.GroupIterator_Destroy(Iterator);
-end;
-
-// Clears non-designator text objects from layers 66 and 67
-procedure ClearTextObjectsFromLayers(Board: IPCB_Board; Component: IPCB_Component; var TopClearCount, BottomClearCount: Integer);
-var
-  Iterator: IPCB_GroupIterator;
-  TextObj: IPCB_Text;
-begin
-  Iterator := Component.GroupIterator_Create;
-  Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
-  Iterator.AddFilter_LayerSet(MkSet(66, 67));
-  TextObj := Iterator.FirstPCBObject;
-  while TextObj <> nil do
-  begin
-    if not (TextObj.IsDesignator or (TextObj.UnderlyingString = '.Designator')) then
-    begin
-      if TextObj.Layer = 66 then Inc(TopClearCount)
-      else Inc(BottomClearCount);
-      Board.RemovePCBObject(TextObj);
-      Component.RemovePCBObject(TextObj);
-      PCBServer.DestroyPCBObject(TextObj);
-    end;
-    TextObj := Iterator.NextPCBObject;
-  end;
-  Component.GroupIterator_Destroy(Iterator);
 end;
 
 // Copies objects from source layer to target layer for a component
-procedure CopyLayerObjects(Board: IPCB_Board; Component: IPCB_Component; SourceLayer, TargetLayer: Integer; var Counter: Integer);
+procedure CopyLayerObjects(Board: IPCB_Board; Component: IPCB_Component; SourceLayer, TargetLayer: Integer);
 var
   Iterator: IPCB_GroupIterator;
   Primitive, NewPrimitive: IPCB_Primitive;
+  AddedToBoard, AddedToComponent: Boolean;
 begin
   Iterator := Component.GroupIterator_Create;
-  Iterator.AddFilter_ObjectSet((AllPrimitives));
-  Iterator.AddFilter_LayerSet(MkSet(SourceLayer));
-  Primitive := Iterator.FirstPCBObject;
-  while Primitive <> nil do
-  begin
-    if ((Primitive.ObjectId <> eTextObject) or (not Primitive.IsDesignator)) and
-       (Primitive.ObjectId <> eComponentBodyObject) then
+  try
+    Iterator.AddFilter_ObjectSet((AllPrimitives));
+    Iterator.AddFilter_LayerSet(MkSet(SourceLayer));
+    Primitive := Iterator.FirstPCBObject;
+    while Primitive <> nil do
     begin
-      NewPrimitive := Primitive.Replicate;
-      if NewPrimitive <> nil then
+      if ((Primitive.ObjectId <> eTextObject) or (not Primitive.IsDesignator)) and
+         (Primitive.ObjectId <> eComponentBodyObject) then
       begin
-        NewPrimitive.BeginModify;
-        try
-          NewPrimitive.Layer := TargetLayer;
-          Board.AddPCBObject(NewPrimitive);
-          Component.AddPCBObject(NewPrimitive);
-          Inc(Counter);
-        finally
-          NewPrimitive.EndModify;
+        NewPrimitive := Primitive.Replicate;
+        if NewPrimitive <> nil then
+        begin
+          AddedToBoard := False;
+          AddedToComponent := False;
+          try
+            NewPrimitive.BeginModify;
+            try
+              NewPrimitive.Layer := TargetLayer;
+            finally
+              NewPrimitive.EndModify;
+            end;
+            Board.AddPCBObject(NewPrimitive);
+            AddedToBoard := True;
+            Component.AddPCBObject(NewPrimitive);
+            AddedToComponent := True;
+          finally
+            if not AddedToComponent then
+            begin
+              if AddedToBoard then
+                Board.RemovePCBObject(NewPrimitive);
+              PCBServer.DestroyPCBObject(NewPrimitive);
+            end;
+          end;
         end;
       end;
+      Primitive := Iterator.NextPCBObject;
     end;
-    Primitive := Iterator.NextPCBObject;
+  finally
+    if Iterator <> nil then
+      Component.GroupIterator_Destroy(Iterator);
   end;
-  Component.GroupIterator_Destroy(Iterator);
 end;
 
 // Creates centered designators for all components on the board
-procedure CreateCenteredDesignatorsForAllComponents;
+procedure CreateCenteredDesignatorsForAllComponents(TopLayer, BottomLayer: Integer);
 var
   Board: IPCB_Board;
   Comp: IPCB_Component;
@@ -479,23 +537,26 @@ var
   ScaleFactor: Double;
   TargetLayer: Integer;
   DesignatorText: String;
+  AddedToBoard, AddedToComponent: Boolean;
 begin
   Board := PCBServer.GetCurrentPCBBoard;
   if Board = nil then Exit;
+  Iterator := nil;
   Iterator := Board.BoardIterator_Create;
-  Iterator.AddFilter_ObjectSet(MkSet(eComponentObject));
-  Iterator.AddFilter_LayerSet((AllLayers));
-  Iterator.AddFilter_Method(eProcessAll);
-  Comp := Iterator.FirstPCBObject;
-  while Comp <> nil do
-  begin
+  try
+    Iterator.AddFilter_ObjectSet(MkSet(eComponentObject));
+    Iterator.AddFilter_LayerSet((AllLayers));
+    Iterator.AddFilter_Method(eProcessAll);
+    Comp := Iterator.FirstPCBObject;
+    while Comp <> nil do
+    begin
     if IsTestPointComponent(Comp) then
     begin
       Comp := Iterator.NextPCBObject;
       Continue;
     end;
-    if Comp.Layer = eTopLayer then TargetLayer := 68
-    else if Comp.Layer = eBottomLayer then TargetLayer := 69
+    if Comp.Layer = eTopLayer then TargetLayer := TopLayer
+    else if Comp.Layer = eBottomLayer then TargetLayer := BottomLayer
     else
     begin
       Comp := Iterator.NextPCBObject;
@@ -504,7 +565,7 @@ begin
     CompRect := Comp.BoundingRectangleNoNameCommentForSignals;
     CenterX := (CompRect.Left + CompRect.Right) div 2;
     CenterY := (CompRect.Top + CompRect.Bottom) div 2;
-    TextHeight := MilsToCoord(60);
+  TextHeight := MilsToCoord(DESIGNATOR_INITIAL_HEIGHT_MILS);
     StrokeWidth := TextHeight div 10;
     Designator := PCBServer.PCBObjectFactory(eTextObject, eNoDimension, eCreate_Default);
     if Designator = nil then
@@ -512,37 +573,42 @@ begin
       Comp := Iterator.NextPCBObject;
       Continue;
     end;
-    if (Comp.Name <> nil) and (Comp.Name.Text <> '') then
-      DesignatorText := Comp.Name.Text
-    else
-      DesignatorText := 'UNKNOWN';
+    AddedToBoard := False;
+    AddedToComponent := False;
     PCBServer.PreProcess;
     try
-      Designator.BeginModify;
-      Designator.Layer := TargetLayer;
-      Designator.Text := DesignatorText;
-      Designator.UnderlyingString := '.Designator';
-      Designator.Component := Comp;
-      Designator.Size := TextHeight;
-      Designator.Width := StrokeWidth;
-      Designator.UseTTFonts := True;
-      Designator.TTFInvertedTextJustify := eAutoPos_CenterCenter;
-      // Set designator rotation based on component rotation
-      case Comp.Rotation of
-        0, 180:   Designator.Rotation := 0;
-        90, 270:  Designator.Rotation := 90;
-        45, 225:  Designator.Rotation := 45;
-        135, 315: Designator.Rotation := 135;
+      if (Comp.Name <> nil) and (Comp.Name.Text <> '') then
+        DesignatorText := Comp.Name.Text
       else
-        Designator.Rotation := Comp.Rotation;
+        DesignatorText := 'UNKNOWN';
+      Designator.BeginModify;
+      try
+        Designator.Layer := TargetLayer;
+        Designator.Text := DesignatorText;
+        Designator.UnderlyingString := '.Designator';
+        Designator.Component := Comp;
+        Designator.Size := TextHeight;
+        Designator.Width := StrokeWidth;
+        Designator.UseTTFonts := True;
+        Designator.TTFInvertedTextJustify := eAutoPos_CenterCenter;
+        case Comp.Rotation of
+          0, 180:   Designator.Rotation := 0;
+          90, 270:  Designator.Rotation := 90;
+          45, 225:  Designator.Rotation := 45;
+          135, 315: Designator.Rotation := 135;
+        else
+          Designator.Rotation := Comp.Rotation;
+        end;
+        Designator.XLocation := CenterX;
+        Designator.YLocation := CenterY;
+      finally
+        Designator.EndModify;
       end;
-      Designator.XLocation := CenterX;
-      Designator.YLocation := CenterY;
-      Designator.EndModify;
       Board.AddPCBObject(Designator);
+      AddedToBoard := True;
       Comp.AddPCBObject(Designator);
-      Designator.GraphicallyInvalidate;
-      ScaleFactor := 0.9;
+      AddedToComponent := True;
+      ScaleFactor := DESIGNATOR_SHRINK_FACTOR;
       repeat
         DesignatorRect := Designator.BoundingRectangle;
         if (DesignatorRect.Left >= CompRect.Left) and
@@ -551,39 +617,51 @@ begin
            (DesignatorRect.Bottom >= CompRect.Bottom) then
           Break;
         Designator.BeginModify;
-        Designator.Size := Round(Designator.Size * ScaleFactor);
-        Designator.Width := Round(Designator.Width * ScaleFactor);
-        Designator.XLocation := CenterX;
-        Designator.YLocation := CenterY;
-        Designator.EndModify;
-        Designator.GraphicallyInvalidate;
-      until Designator.Size < MilsToCoord(10);
+        try
+          Designator.Size := Round(Designator.Size * ScaleFactor);
+          Designator.Width := Round(Designator.Width * ScaleFactor);
+          Designator.XLocation := CenterX;
+          Designator.YLocation := CenterY;
+        finally
+          Designator.EndModify;
+        end;
+      until Designator.Size < MilsToCoord(DESIGNATOR_MIN_HEIGHT_MILS);
       DesignatorRect := Designator.BoundingRectangle;
       DesignatorCenterX := (DesignatorRect.Left + DesignatorRect.Right) div 2;
       DesignatorCenterY := (DesignatorRect.Top + DesignatorRect.Bottom) div 2;
       OffsetX := CenterX - DesignatorCenterX;
       OffsetY := CenterY - DesignatorCenterY;
       Designator.MoveByXY(OffsetX, OffsetY);
+      Designator.GraphicallyInvalidate;
     finally
-      PCBServer.PostProcess;
+      try
+        if not AddedToComponent then
+        begin
+          if AddedToBoard then
+            Board.RemovePCBObject(Designator);
+          PCBServer.DestroyPCBObject(Designator);
+        end;
+      finally
+        PCBServer.PostProcess;
+      end;
     end;
-    Comp := Iterator.NextPCBObject;
+      Comp := Iterator.NextPCBObject;
+    end;
+  finally
+    if Iterator <> nil then
+      Board.BoardIterator_Destroy(Iterator);
   end;
-  Board.BoardIterator_Destroy(Iterator);
   Board.ViewManager_FullUpdate;
   
 end;
 
 // Main processing function for all components on the board
-procedure ProcessAllComponents;
+procedure ProcessAllComponents(TopDesignatorLayer, BottomDesignatorLayer,
+  TopAssemblyLayer, BottomAssemblyLayer: Integer);
 var
   Board: IPCB_Board;
   Component: IPCB_Component;
   Iterator: IPCB_BoardIterator;
-  TopCopyCount, BottomCopyCount: Integer;
-  TopClearCount, BottomClearCount: Integer;
-  Clear61Count, Clear62Count: Integer;
-  ManualTextsDeleted: Integer;
   TargetWidth : TCoord;
 begin
   Board := PCBServer.GetCurrentPCBBoard;
@@ -592,69 +670,133 @@ begin
     ShowMessage('No active PCB document!');
     Exit;
   end;
-  TopCopyCount := 0; BottomCopyCount := 0;
-  TopClearCount := 0; BottomClearCount := 0;
-  Clear61Count := 0; Clear62Count := 0;
-  ManualTextsDeleted := 0;
-  DeleteManualTextsOnLayers68_69(ManualTextsDeleted);
+  DeleteManualTextsOnDesignatorLayers(TopDesignatorLayer, BottomDesignatorLayer);
+  Iterator := nil;
   PCBServer.PreProcess;
   try
     Iterator := Board.BoardIterator_Create;
-    Iterator.AddFilter_ObjectSet(MkSet(eComponentObject));
-    Iterator.AddFilter_LayerSet((AllLayers));
-    Iterator.AddFilter_Method(eProcessAll);
-    Component := Iterator.FirstPCBObject;
-    while Component <> nil do
-    begin
-      if not IsBrusaComponent(Component) then
+    try
+      Iterator.AddFilter_ObjectSet(MkSet(eComponentObject));
+      Iterator.AddFilter_LayerSet((AllLayers));
+      Iterator.AddFilter_Method(eProcessAll);
+      Component := Iterator.FirstPCBObject;
+      while Component <> nil do
       begin
-        ClearDesignatorsFromSourceLayers(Board, Component, Clear61Count, Clear62Count);
-        ClearTextObjectsFromLayers(Board, Component, TopClearCount, BottomClearCount);
+        if not IsBrusaComponent(Component) then
+        begin
+          ClearDesignatorsFromSourceLayers(Board, Component);
+          ClearTextObjectsFromLayers(Board, Component, TopAssemblyLayer, BottomAssemblyLayer);
+          if not IsTestPointComponent(Component) then
+          begin
+            if Component.Layer = eTopLayer then
+              CopyLayerObjects(Board, Component, SOURCE_TOP_LAYER, TopAssemblyLayer)
+            else if Component.Layer = eBottomLayer then
+              CopyLayerObjects(Board, Component, SOURCE_BOTTOM_LAYER, BottomAssemblyLayer);
+          end;
+        end;
+        Component := Iterator.NextPCBObject;
       end;
-      Component := Iterator.NextPCBObject;
+    finally
+      if Iterator <> nil then
+        Board.BoardIterator_Destroy(Iterator);
     end;
-    Component := Iterator.FirstPCBObject;
-    while Component <> nil do
-    begin
-      if not IsBrusaComponent(Component) and not IsTestPointComponent(Component) then
-      begin
-        if Component.Layer = eTopLayer then
-          CopyLayerObjects(Board, Component, 61, 66, TopCopyCount)
-        else if Component.Layer = eBottomLayer then
-          CopyLayerObjects(Board, Component, 62, 67, BottomCopyCount);
-      end;
-      Component := Iterator.NextPCBObject;
-    end;
-    Board.BoardIterator_Destroy(Iterator);
   finally
     PCBServer.PostProcess;
   end;
-  CreateCenteredDesignatorsForAllComponents;
-  SaveCurrentPCB;
-  TargetWidth := MMsToCoord(0.1); // 0.1mm
+  CreateCenteredDesignatorsForAllComponents(TopDesignatorLayer, BottomDesignatorLayer);
+  if not SaveCurrentPCB then Exit;
+  TargetWidth := MMsToCoord(ASSEMBLY_TRACK_WIDTH_MM);
 
-  // 66th Layer - ASM TOP
-  ProcessTracksOnLayer(66, TargetWidth);
-  ProcessArcsOnLayer(66, TargetWidth);
-  ClearSelections;
+  // Top assembly output layer.
+  ProcessTracksOnLayer(TopAssemblyLayer, TargetWidth);
+  ProcessArcsOnLayer(TopAssemblyLayer, TargetWidth);
 
-  // 67th Layer - ASM BOT
-  ProcessTracksOnLayer(67, TargetWidth);
-  ProcessArcsOnLayer(67, TargetWidth);
-  ClearSelections;
+  // Bottom assembly output layer.
+  ProcessTracksOnLayer(BottomAssemblyLayer, TargetWidth);
+  ProcessArcsOnLayer(BottomAssemblyLayer, TargetWidth);
 
   // Save the board
-  SaveCurrentPCB;
+  if not SaveCurrentPCB then Exit;
   
   ShowMessage('Completed successfully!');
 end;
 
 // Event handler for the Save button - initiates the main processing
 procedure TForm1.sourceLibrary_SaveClick(Sender: TObject);
+var
+  Board: IPCB_Board;
+  TopDesignatorLayer, BottomDesignatorLayer: Integer;
+  TopAssemblyLayer, BottomAssemblyLayer: Integer;
 begin
+  Board := PCBServer.GetCurrentPCBBoard;
+  if Board = nil then
+  begin
+    ShowMessage('No active PCB document!');
+    Exit;
+  end;
+  if GetWorkspace = nil then
+  begin
+    ShowMessage('Cannot access the Altium workspace.');
+    Exit;
+  end;
+  if Board.FileName = '' then
+  begin
+    ShowMessage('Save the PCB document before running this operation.');
+    Exit;
+  end;
+
+  if LibSelection_Custom.Checked then
+  begin
+    if not TryGetSelectedLayer(topDesignatorSelection_ComboBox, TopDesignatorLayer) or
+       not TryGetSelectedLayer(bottomDesignatorSelection_ComboBox, BottomDesignatorLayer) or
+       not TryGetSelectedLayer(topAssemblySelection_ComboBox, TopAssemblyLayer) or
+       not TryGetSelectedLayer(bottomAssemblySelection_ComboBox, BottomAssemblyLayer) then
+    begin
+      ShowMessage('Select valid layers for all four custom outputs.');
+      Exit;
+    end;
+    if (TopAssemblyLayer = SOURCE_TOP_LAYER) or
+       (TopAssemblyLayer = SOURCE_BOTTOM_LAYER) or
+       (BottomAssemblyLayer = SOURCE_TOP_LAYER) or
+       (BottomAssemblyLayer = SOURCE_BOTTOM_LAYER) then
+    begin
+      ShowMessage('Assembly output layers cannot be the source layers.');
+      Exit;
+    end;
+    if (TopDesignatorLayer = BottomDesignatorLayer) or
+       (TopDesignatorLayer = TopAssemblyLayer) or
+       (TopDesignatorLayer = BottomAssemblyLayer) or
+       (BottomDesignatorLayer = TopAssemblyLayer) or
+       (BottomDesignatorLayer = BottomAssemblyLayer) or
+       (TopAssemblyLayer = BottomAssemblyLayer) then
+    begin
+      ShowMessage('Select a different layer for each custom output.');
+      Exit;
+    end;
+  end
+  else
+  begin
+    if not BrusaHyPowerAG.Checked then
+    begin
+      ShowMessage('Select a supported library configuration.');
+      Exit;
+    end;
+    if not (LibSourceSelection_HyPower_Prod.Checked or
+            LibSourceSelection_HyPower_DBLIB.Checked) then
+    begin
+      ShowMessage('Select a HyPower library source.');
+      Exit;
+    end;
+    TopDesignatorLayer := DESIGNATOR_TOP_LAYER;
+    BottomDesignatorLayer := DESIGNATOR_BOTTOM_LAYER;
+    TopAssemblyLayer := ASSEMBLY_TOP_LAYER;
+    BottomAssemblyLayer := ASSEMBLY_BOTTOM_LAYER;
+  end;
+
   UnlockAllComponents;
-  DeleteOnlyComponentDesignators;
-  ProcessAllComponents;
+  DeleteOnlyComponentDesignators(TopDesignatorLayer, BottomDesignatorLayer);
+  ProcessAllComponents(TopDesignatorLayer, BottomDesignatorLayer,
+    TopAssemblyLayer, BottomAssemblyLayer);
 end;
 
 // Unlocks all components on the board to make them movable
@@ -663,45 +805,56 @@ var
   PCB_Board: IPCB_Board;
   Iterator: IPCB_BoardIterator;
   Comp: IPCB_Component;
-  Count: Integer;
+  WasSelected: Boolean;
 begin
-  Count := 0;
   PCB_Board := PCBServer.GetCurrentPCBBoard;
   if PCB_Board = nil then
   begin
     ShowMessage('PCB board not found.');
     Exit;
   end;
-  Iterator := PCB_Board.BoardIterator_Create;
-  Iterator.AddFilter_ObjectSet(MkSet(eComponentObject));
-  Iterator.AddFilter_LayerSet(AllLayers);
-  Iterator.AddFilter_Method(eProcessAll);
-  Comp := Iterator.FirstPCBObject;
-  while Comp <> nil do
-  begin
-    Comp.PrimitiveLock := False;
-    Comp.Selected := True;
+  Iterator := nil;
+  PCBServer.PreProcess;
+  try
+    Iterator := PCB_Board.BoardIterator_Create;
     try
-      Comp.Moveable := True;
-    except
+      Iterator.AddFilter_ObjectSet(MkSet(eComponentObject));
+      Iterator.AddFilter_LayerSet(AllLayers);
+      Iterator.AddFilter_Method(eProcessAll);
+      Comp := Iterator.FirstPCBObject;
+      while Comp <> nil do
+      begin
+        WasSelected := Comp.Selected;
+        Comp.BeginModify;
+        try
+          Comp.PrimitiveLock := False;
+          Comp.Selected := True;
+          Comp.Moveable := True;
+        finally
+          try
+            Comp.Selected := WasSelected;
+          finally
+            Comp.EndModify;
+          end;
+        end;
+        Comp := Iterator.NextPCBObject;
+      end;
+    finally
+      if Iterator <> nil then
+        PCB_Board.BoardIterator_Destroy(Iterator);
     end;
-    Comp.Selected := False;
-    Inc(Count);
-    Comp := Iterator.NextPCBObject;
+  finally
+    PCBServer.PostProcess;
   end;
-  PCB_Board.BoardIterator_Destroy(Iterator);
   
 end;
 
 // Deletes component designators from specified layers
-procedure TForm1.DeleteOnlyComponentDesignators;
+procedure TForm1.DeleteOnlyComponentDesignators(TopLayer, BottomLayer: Integer);
 var
   Board: IPCB_Board;
   Iterator: IPCB_BoardIterator;
   TextObj: IPCB_Text;
-  CountDeleted1, CountDeleted2: Integer;
-  Layer1, Layer2: Integer;
-  LayerText: String;
   NextObject: IPCB_Text;
   UnderlyingStr: String;
 begin
@@ -712,76 +865,43 @@ begin
     Exit;
   end;
 
-  // Determine target layers based on UI selection
-  Layer1 := 68;
-  Layer2 := 69;
-  if LibSelection_Custom.Checked then
-  begin
-    try
-      LayerText := Copy(topDesignatorSelection_ComboBox.Text, 1,
-        Pos('-', topDesignatorSelection_ComboBox.Text) - 1);
-      Layer1 := StrToInt(Trim(LayerText));
-    except
-      ShowMessage('Invalid Top Designator layer!');
-      Exit;
-    end;
-    try
-      LayerText := Copy(bottomDesignatorSelection_ComboBox.Text, 1,
-        Pos('-', bottomDesignatorSelection_ComboBox.Text) - 1);
-      Layer2 := StrToInt(Trim(LayerText));
-    except
-      ShowMessage('Invalid Bottom Designator layer!');
-      Exit;
-    end;
-  end
-  else if not (LibSourceSelection_HyPower_Prod.Checked or
-               LibSourceSelection_HyPower_DBLIB.Checked) then
-    Exit;
-
-  CountDeleted1 := 0;
-  CountDeleted2 := 0;
-
+  Iterator := nil;
   PCBServer.PreProcess;
   try
     // Single iteration for both target layers
     Iterator := Board.BoardIterator_Create;
-    Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
-    Iterator.AddFilter_LayerSet(MkSet(Layer1, Layer2));
-    Iterator.AddFilter_Method(eProcessAll);
+    try
+      Iterator.AddFilter_ObjectSet(MkSet(eTextObject));
+      Iterator.AddFilter_LayerSet(MkSet(TopLayer, BottomLayer));
+      Iterator.AddFilter_Method(eProcessAll);
 
-    TextObj := Iterator.FirstPCBObject;
-    while TextObj <> nil do
-    begin
-      // Store next object before potential deletion
-      NextObject := Iterator.NextPCBObject;
-
-      // Get and clean underlying string
-      UnderlyingStr := TextObj.UnderlyingString;
-
-      // Check for both '.Designator' and quoted version
-      if ((UnderlyingStr = '.Designator') or (UnderlyingStr = ''''+'.Designator'+'''')) and (TextObj.Component <> nil) then
+      TextObj := Iterator.FirstPCBObject;
+      while TextObj <> nil do
       begin
-        if TextObj.Layer = Layer1 then
-          Inc(CountDeleted1)
-        else if TextObj.Layer = Layer2 then
-          Inc(CountDeleted2);
+        // Store next object before potential deletion
+        NextObject := Iterator.NextPCBObject;
 
-        // First remove from component
-        if TextObj.Component <> nil then
-          TextObj.Component.RemovePCBObject(TextObj);
+        // Get and clean underlying string
+        UnderlyingStr := TextObj.UnderlyingString;
 
-        // Remove from board and destroy
-        Board.RemovePCBObject(TextObj);
-        PCBServer.DestroyPCBObject(TextObj);
+        // Check for both '.Designator' and quoted version
+        if ((UnderlyingStr = '.Designator') or (UnderlyingStr = ''''+'.Designator'+'''')) and (TextObj.Component <> nil) then
+        begin
+          // First remove from component
+          if TextObj.Component <> nil then
+            TextObj.Component.RemovePCBObject(TextObj);
 
-        // Short delay for stability
-        Sleep(50);
+          // Remove from board and destroy
+          Board.RemovePCBObject(TextObj);
+          PCBServer.DestroyPCBObject(TextObj);
+        end;
+
+        TextObj := NextObject;
       end;
-
-      TextObj := NextObject;
+    finally
+      if Iterator <> nil then
+        Board.BoardIterator_Destroy(Iterator);
     end;
-
-    Board.BoardIterator_Destroy(Iterator);
   finally
     PCBServer.PostProcess;
   end;
@@ -789,18 +909,6 @@ begin
   Board.ViewManager_FullUpdate;
   Board.GraphicallyInvalidate;
 
-end;
-
-// Helper function to convert coordinates to millimeters (string output)
-function CoordToMM(Coord: TCoord): String;
-begin
-  Result := FormatFloat('0.00', Coord * 0.00000254) + ' mm';
-end;
-
-// Helper function to convert coordinates to millimeters (numeric output)
-function CoordValueToMM(Coord: TCoord): Double;
-begin
-  Result := Coord * 0.00000254;
 end;
 
 end.
