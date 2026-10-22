@@ -1,8 +1,10 @@
 object Form1: TForm1
   Left = 0
   Top = 0
-  Caption = 'BHyP ASM Layer Editer - V1.0.6'
-  ClientHeight = 480
+  Caption = 'BHyP ASM Layer Editer - V1.0.0'
+  BorderStyle = bsSingle
+  BorderIcons = [biSystemMenu]
+  ClientHeight = 510
   ClientWidth = 440
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -236,24 +238,75 @@ object Form1: TForm1
       ParentFont = False
     end
   end
-  object ContactGroupBox: TGroupBox
+  object HelpGroupBox: TGroupBox
     Left = 15
-    Top = 420
+    Top = 474
     Width = 410
-    Height = 50
-    Caption = 'Contact'
+    Height = 34
+    Caption = 'Help - Add to Altium'
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
     Font.Height = -13
     Font.Name = 'Tahoma'
     Font.Style = [fsBold]
     ParentFont = False
-    object ContactInfo: TLabel
+    object HelpToggleButton: TButton
+      Left = 290
+      Top = 4
+      Width = 105
+      Height = 23
+      Caption = 'Help: Open'
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 0
+      OnClick = HelpToggleButtonClick
+    end
+    object HelpMemo: TMemo
+      Left = 8
+      Top = 30
+      Width = 390
+      Height = 172
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      Lines.Strings = (
+        '1. Open the PCB editor and right-click a menu or toolbar area.'
+        '2. Select Customize, then create a new command.'
+        '3. Set Process to:'
+        'ScriptingSystem:RunScript'
+        '4. Set Parameters to:'
+        'ProjectName=C:\Users\ata01\source\repos\ahmediemre\AltiumAssemblyLayer\src\brusaASM.PrjScr|ProcName=brusaASM.pas>RunBrusaASM'
+        '5. Set a caption, then drag the command to a menu or toolbar.'
+        '6. Click the new command to open this form; click Start to process.'
+        'Select and copy these lines with Ctrl+C. Update the path if moved.')
+      ParentFont = False
+      ReadOnly = True
+      ScrollBars = ssBoth
+      TabOrder = 1
+      Visible = False
+      WordWrap = False
+    end
+  end
+  object AboutGroupBox: TGroupBox
+    Left = 15
+    Top = 420
+    Width = 410
+    Height = 50
+    Caption = 'About'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -13
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
+    object AboutLabel: TLabel
       Left = 8
       Top = 23
       Width = 390
       Height = 18
-      Caption = 'ahmet.talanci@brusahypower.com'
+      Caption = 'V1.0.0  |  Ahmet Emre TALANCI  |  ahmet.talanci@brusahypower.com'
       AutoSize = False
       Alignment = taCenter
       Font.Charset = DEFAULT_CHARSET

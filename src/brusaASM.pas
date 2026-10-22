@@ -18,18 +18,20 @@ type
     BOT_ASM: TLabel;                           						// Bottom assembly layer label
     TOP_DES: TLabel;                           						// Top designator layer label
     TOP_ASM: TLabel;                           						// Top assembly layer label
-    ContactLabel: TLabel;
-    ContactInfo: TLabel;
     topDesignatorSelection_ComboBox: TComboBox; 					// Top designator layer selection
     topAssemblySelection_ComboBox: TComboBox;   					// Top assembly layer selection
     bottomDesignatorSelection_ComboBox: TComboBox; 					// Bottom designator layer selection
     bottomAssemblySelection_ComboBox: TComboBox; 					// Bottom assembly layer selection
     SourceGroupBox: TGroupBox;
     RefreshButton: TButton;
-     ContactGroupBox: TGroupBox;
+     HelpGroupBox: TGroupBox;
+     AboutGroupBox: TGroupBox;
      BoardStatusGroupBox: TGroupBox;
     BoardStatusLabel: TLabel;
      BoardFileNameLabel: TLabel;
+     HelpMemo: TMemo;
+     AboutLabel: TLabel;
+     HelpToggleButton: TButton;
 
     // Event Handlers
     procedure FormCreate(Sender: TObject);      					  // Initializes form
@@ -39,6 +41,7 @@ type
     procedure LibSourceSelection_HyPower_DBLIBClick(Sender: TObject); // Handles DB library source selection
     procedure RefreshButtonClick(Sender: TObject);
     procedure sourceLibrary_SaveClick(Sender: TObject); 			  // Main processing trigger
+     procedure HelpToggleButtonClick(Sender: TObject);
   private
     // Helper Methods
     FUpdatingLibrarySource: Boolean;
@@ -256,6 +259,11 @@ begin
   FBoardReady := False;
   FProcessing := False;
   StopRequested := False;
+  HelpMemo.Visible := False;
+  HelpToggleButton.Caption := 'Help: Open';
+  HelpGroupBox.Height := 34;
+  HelpGroupBox.Top := AboutGroupBox.Top + AboutGroupBox.Height + 4;
+  ClientHeight := HelpGroupBox.Top + HelpGroupBox.Height + 8;
   BrusaHyPowerAG.Checked := True;
   LibSelection_Custom.Checked := False;
   SetLayerAssignmentsVisible(False);
@@ -264,6 +272,23 @@ begin
   BoardStatusLabel.Width := 410;
   BoardFileNameLabel.Caption := '';
   UpdateLibraryCheckboxes;
+end;
+
+procedure TForm1.HelpToggleButtonClick(Sender: TObject);
+begin
+  HelpMemo.Visible := not HelpMemo.Visible;
+  if HelpMemo.Visible then
+  begin
+    HelpGroupBox.Height := 210;
+    HelpToggleButton.Caption := 'Help: Close';
+    ClientHeight := HelpGroupBox.Top + HelpGroupBox.Height + 8;
+  end
+  else
+  begin
+    HelpGroupBox.Height := 34;
+    HelpToggleButton.Caption := 'Help: Open';
+    ClientHeight := HelpGroupBox.Top + HelpGroupBox.Height + 8;
+  end;
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
