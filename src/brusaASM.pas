@@ -24,9 +24,9 @@ type
     topAssemblySelection_ComboBox: TComboBox;   					// Top assembly layer selection
     bottomDesignatorSelection_ComboBox: TComboBox; 					// Bottom designator layer selection
     bottomAssemblySelection_ComboBox: TComboBox; 					// Bottom assembly layer selection
-    sourceLib: TLabel;                         						// Library source label
-
     SourceGroupBox: TGroupBox;
+    RefreshButton: TButton;
+    BoardStatusLabel: TLabel;
 
     // Event Handlers
     procedure FormCreate(Sender: TObject);      					  // Initializes form
@@ -34,11 +34,14 @@ type
     procedure LibSelection_CustomClick(Sender: TObject); 			  // Handles custom selection
     procedure LibSourceSelection_HyPower_ProdClick(Sender: TObject);  // Handles production source selection
     procedure LibSourceSelection_HyPower_DBLIBClick(Sender: TObject); // Handles DB library source selection
+    procedure RefreshButtonClick(Sender: TObject);
     procedure sourceLibrary_SaveClick(Sender: TObject); 			  // Main processing trigger
   private
     // Helper Methods
     FUpdatingLibrarySource: Boolean;
+    FBoardReady: Boolean;
     procedure UpdateLibraryCheckboxes;          					// Updates UI based on selections
+    procedure SetBoardReady(Ready: Boolean);
     procedure SetCustomLayerLabelsVisible(Visible: Boolean); 		// Toggles custom layer UI
     procedure Toggle_HyPowerLibrary(Selected: string); 				// Manages HyPower library options
     procedure FillAllLayerCombos;              						// Populates layer selection comboboxes
@@ -207,15 +210,62 @@ End;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   FUpdatingLibrarySource := False;
+  FBoardReady := False;
   LibSelection_Custom.Checked := False;
   SetCustomLayerLabelsVisible(False);
+  SetBoardReady(False);
   UpdateLibraryCheckboxes;
+  RefreshButtonClick(Self);
+end;
+
+procedure TForm1.SetBoardReady(Ready: Boolean);
+begin
+  FBoardReady := Ready;
+  SourceGroupBox.Enabled := Ready;
+  BrusaHyPowerAG.Enabled := Ready;
+  LibSelection_Custom.Enabled := Ready;
+  LibSourceSelection_HyPower_Prod.Enabled := Ready and BrusaHyPowerAG.Checked;
+  LibSourceSelection_HyPower_DBLIB.Enabled := Ready and BrusaHyPowerAG.Checked;
+  sourceLibrary_Save.Enabled := Ready;
+  LayerNumbers.Enabled := Ready;
+  TOP_DES.Enabled := Ready;
+  TOP_ASM.Enabled := Ready;
+  BOT_DES.Enabled := Ready;
+  BOT_ASM.Enabled := Ready;
+  topDesignatorSelection_ComboBox.Enabled := Ready;
+  topAssemblySelection_ComboBox.Enabled := Ready;
+  bottomDesignatorSelection_ComboBox.Enabled := Ready;
+  bottomAssemblySelection_ComboBox.Enabled := Ready;
+  BoardStatusLabel.Visible := True;
+  SetCustomLayerLabelsVisible(Ready and LibSelection_Custom.Checked);
+end;
+
+procedure TForm1.RefreshButtonClick(Sender: TObject);
+var
+  Board: IPCB_Board;
+begin
+  Board := PCBServer.GetCurrentPCBBoard;
+  if Board = nil then
+  begin
+    SetBoardReady(False);
+    BoardStatusLabel.Caption := 'Open a PCB document, then click Refresh.';
+    ShowMessage('Please open a PCB document first, then click Refresh.');
+    Exit;
+  end;
+
+  FillAllLayerCombos;
+  SetBoardReady(True);
+  UpdateLibraryCheckboxes;
+  if Board.FileName <> '' then
+    BoardStatusLabel.Caption := 'Active PCB: ' + ExtractFileName(Board.FileName)
+  else
+    BoardStatusLabel.Caption := 'PCB document ready.';
 end;
 
 // Updates the state of library-related checkboxes based on user selection
 procedure TForm1.UpdateLibraryCheckboxes;
 begin
-  if BrusaHyPowerAG.Checked then
+  if FBoardReady and BrusaHyPowerAG.Checked then
   begin
     LibSourceSelection_HyPower_Prod.Enabled := True;
     LibSourceSelection_HyPower_DBLIB.Enabled := True;
@@ -226,7 +276,7 @@ begin
     LibSourceSelection_HyPower_DBLIB.Enabled := False;
   end;
 
-  if LibSelection_Custom.Checked then
+  if FBoardReady and LibSelection_Custom.Checked then
   begin
     LibSourceSelection_HyPower_Prod.Enabled := False;
     LibSourceSelection_HyPower_DBLIB.Enabled := False;
@@ -243,7 +293,7 @@ begin
       FUpdatingLibrarySource := False;
     end;
   end;
-  SetCustomLayerLabelsVisible(LibSelection_Custom.Checked);
+  SetCustomLayerLabelsVisible(FBoardReady and LibSelection_Custom.Checked);
 end;
 
 // Shows/hides custom layer selection UI elements
@@ -299,7 +349,8 @@ begin
          (i <= LAST_SUPPORTED_LAYER_INDEX) then
         LayerName := PCB_Board.LayerStack.GetMechanicalLayerName(i);
       LayerName := Trim(LayerName);
-      if (LayerName <> '') and (LayerName <> 'No Layer') then
+      if (LayerName <> '') and (UpperCase(LayerName) <> 'NOLAYER') and
+         (UpperCase(LayerName) <> 'NO LAYER') then
       begin
         Entry := Format('%d - %s', [i, LayerName]);
         topDesignatorSelection_ComboBox.Items.Add(Entry);
@@ -650,7 +701,7 @@ begin
   Board := PCBServer.GetCurrentPCBBoard;
   if Board = nil then
   begin
-    ShowMessage('No active PCB document!');
+    RefreshButtonClick(Sender);
     Exit;
   end;
   DeleteManualTextsOnDesignatorLayers(TopDesignatorLayer, BottomDesignatorLayer);
@@ -714,7 +765,7 @@ begin
   Board := PCBServer.GetCurrentPCBBoard;
   if Board = nil then
   begin
-    ShowMessage('No active PCB document!');
+    RefreshButtonClick(Sender);
     Exit;
   end;
   if GetWorkspace = nil then

@@ -69,6 +69,14 @@ object Form1: TForm1
     Font.Style = [fsBold]
     ParentFont = False
   end
+  object RefreshButton: TButton
+    Left = 330
+    Top = 28
+    Width = 80
+    Height = 24
+    Caption = 'Refresh'
+    OnClick = RefreshButtonClick
+  end
   object sourceLibrary_Save: TButton
     Left = 182
     Top = 170
@@ -158,5 +166,12 @@ object Form1: TForm1
     Font.Name = 'Tahoma'
     Font.Style = [fsBold]
     ParentFont = False
+  end
+  object BoardStatusLabel: TLabel
+    Left = 15
+    Top = 344
+    Width = 410
+    Height = 17
+    Caption = 'Open a PCB document, then click Refresh.'
   end
 end
