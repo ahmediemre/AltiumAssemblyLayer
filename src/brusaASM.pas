@@ -18,7 +18,6 @@ type
     BOT_ASM: TLabel;                           						// Bottom assembly layer label
     TOP_DES: TLabel;                           						// Top designator layer label
     TOP_ASM: TLabel;                           						// Top assembly layer label
-    LayerNumbers: TLabel;                      						// Layer assignments label
     ContactLabel: TLabel;
     ContactInfo: TLabel;
     topDesignatorSelection_ComboBox: TComboBox; 					// Top designator layer selection
@@ -27,7 +26,10 @@ type
     bottomAssemblySelection_ComboBox: TComboBox; 					// Bottom assembly layer selection
     SourceGroupBox: TGroupBox;
     RefreshButton: TButton;
+     ContactGroupBox: TGroupBox;
+     BoardStatusGroupBox: TGroupBox;
     BoardStatusLabel: TLabel;
+     BoardFileNameLabel: TLabel;
 
     // Event Handlers
     procedure FormCreate(Sender: TObject);      					  // Initializes form
@@ -41,9 +43,12 @@ type
     // Helper Methods
     FUpdatingLibrarySource: Boolean;
     FBoardReady: Boolean;
+    FProcessing: Boolean;
     procedure UpdateLibraryCheckboxes;          					// Updates UI based on selections
     procedure SetBoardReady(Ready: Boolean);
     procedure SetLayerAssignmentsVisible(Visible: Boolean);
+    procedure SelectLayerInCombo(Combo: TComboBox; Layer: Integer; FallbackName: string);
+    procedure SetDefaultLayerAssignments;
     procedure Toggle_HyPowerLibrary(Selected: string); 				// Manages HyPower library options
     procedure FillAllLayerCombos;              						// Populates layer selection comboboxes
     procedure UnlockAllComponents;             						// Unlocks all PCB components
@@ -72,6 +77,41 @@ const
   DESIGNATOR_MIN_HEIGHT_MILS = 10;
   DESIGNATOR_SHRINK_FACTOR = 0.9;
   ASSEMBLY_TRACK_WIDTH_MM = 0.1;
+
+var
+  StopRequested: Boolean;
+
+function ContinueProcessing: Boolean;
+begin
+  Application.ProcessMessages;
+  Result := not StopRequested;
+end;
+
+procedure TForm1.SelectLayerInCombo(Combo: TComboBox; Layer: Integer; FallbackName: string);
+var
+  i: Integer;
+  LayerPrefix: string;
+begin
+  LayerPrefix := IntToStr(Layer) + ' - ';
+  for i := 0 to Combo.Items.Count - 1 do
+  begin
+    if Copy(Combo.Items[i], 1, Length(LayerPrefix)) = LayerPrefix then
+    begin
+      Combo.ItemIndex := i;
+      Exit;
+    end;
+  end;
+  Combo.Items.Add(LayerPrefix + FallbackName);
+  Combo.ItemIndex := Combo.Items.Count - 1;
+end;
+
+procedure TForm1.SetDefaultLayerAssignments;
+begin
+  SelectLayerInCombo(topDesignatorSelection_ComboBox, DESIGNATOR_TOP_LAYER, 'Top Designator');
+  SelectLayerInCombo(topAssemblySelection_ComboBox, ASSEMBLY_TOP_LAYER, 'Top Assembly');
+  SelectLayerInCombo(bottomDesignatorSelection_ComboBox, DESIGNATOR_BOTTOM_LAYER, 'Bottom Designator');
+  SelectLayerInCombo(bottomAssemblySelection_ComboBox, ASSEMBLY_BOTTOM_LAYER, 'Bottom Assembly');
+end;
 
 function TryGetSelectedLayer(Combo: TComboBox; var Layer: Integer): Boolean;
 var
@@ -111,6 +151,7 @@ begin
       Track := Iterator.FirstPCBObject;
       while Track <> nil do
       begin
+        if not ContinueProcessing then Break;
         Track.BeginModify;
         try
           Track.Width := NewWidth;
@@ -152,6 +193,7 @@ begin
       Arc := Iterator.FirstPCBObject;
       while Arc <> nil do
       begin
+        if not ContinueProcessing then Break;
         Arc.BeginModify;
         try
           Arc.LineWidth := NewWidth;
@@ -212,23 +254,35 @@ procedure TForm1.FormCreate(Sender: TObject);
 begin
   FUpdatingLibrarySource := False;
   FBoardReady := False;
+  FProcessing := False;
+  StopRequested := False;
+  BrusaHyPowerAG.Checked := True;
   LibSelection_Custom.Checked := False;
   SetLayerAssignmentsVisible(False);
   SetBoardReady(False);
+  BoardStatusLabel.Caption := 'Open a PCB document, then click Refresh.';
+  BoardStatusLabel.Width := 410;
+  BoardFileNameLabel.Caption := '';
   UpdateLibraryCheckboxes;
-  RefreshButtonClick(Self);
+end;
+
+procedure TForm1.FormShow(Sender: TObject);
+begin
+  if PCBServer.GetCurrentPCBBoard <> nil then
+    RefreshButtonClick(Sender);
 end;
 
 procedure TForm1.SetBoardReady(Ready: Boolean);
 begin
   FBoardReady := Ready;
   SourceGroupBox.Enabled := Ready;
+  BoardStatusGroupBox.Enabled := Ready;
   BrusaHyPowerAG.Enabled := Ready;
   LibSelection_Custom.Enabled := Ready;
   LibSourceSelection_HyPower_Prod.Enabled := Ready and BrusaHyPowerAG.Checked;
   LibSourceSelection_HyPower_DBLIB.Enabled := Ready and BrusaHyPowerAG.Checked;
   sourceLibrary_Save.Enabled := False;
-  LayerNumbers.Enabled := Ready;
+  LayerGroupBox.Enabled := Ready;
   TOP_DES.Enabled := Ready;
   TOP_ASM.Enabled := Ready;
   BOT_DES.Enabled := Ready;
@@ -250,6 +304,8 @@ begin
   begin
     SetBoardReady(False);
     BoardStatusLabel.Caption := 'Open a PCB document, then click Refresh.';
+    BoardStatusLabel.Width := 390;
+    BoardFileNameLabel.Caption := '';
     BoardStatusLabel.Font.Color := clRed;
     ShowMessage('Please open a PCB document first, then click Refresh.');
     Exit;
@@ -258,11 +314,11 @@ begin
   FillAllLayerCombos;
   SetBoardReady(True);
   UpdateLibraryCheckboxes;
+  BoardStatusLabel.Caption := '';
   if Board.FileName <> '' then
-    BoardStatusLabel.Caption := 'Active PCB: ' + ExtractFileName(Board.FileName)
+    BoardFileNameLabel.Caption := ExtractFileName(Board.FileName)
   else
-    BoardStatusLabel.Caption := 'PCB document ready.';
-  BoardStatusLabel.Font.Color := clGreen;
+    BoardFileNameLabel.Caption := 'PCB document ready.';
 end;
 
 // Updates the state of library-related checkboxes based on user selection
@@ -285,6 +341,9 @@ begin
     LibSourceSelection_HyPower_DBLIB.Enabled := False;
     FillAllLayerCombos;
   end;
+
+  if FBoardReady and BrusaHyPowerAG.Checked then
+    SetDefaultLayerAssignments;
 
   if not BrusaHyPowerAG.Checked then
   begin
@@ -310,11 +369,11 @@ end;
 // Shows/hides custom layer selection UI elements
 procedure TForm1.SetLayerAssignmentsVisible(Visible: Boolean);
 begin
+  LayerGroupBox.Visible := Visible;
   BOT_DES.Visible := Visible;
   BOT_ASM.Visible := Visible;
   TOP_DES.Visible := Visible;
   TOP_ASM.Visible := Visible;
-  LayerNumbers.Visible := Visible;
   topDesignatorSelection_ComboBox.Visible := Visible;
   topAssemblySelection_ComboBox.Visible := Visible;
   bottomDesignatorSelection_ComboBox.Visible := Visible;
@@ -418,6 +477,7 @@ begin
       TextObj := Iterator.FirstPCBObject;
       while TextObj <> nil do
       begin
+        if not ContinueProcessing then Break;
         NextText := Iterator.NextPCBObject;
         if (TextObj.Component = nil) and (not TextObj.IsDesignator) then
         begin
@@ -439,11 +499,17 @@ end;
 function IsTestPointComponent(Component: IPCB_Component): Boolean;
 var
   Footprint: String;
+  CommentText: String;
 begin
   Result := False;
   if Component = nil then Exit;
   Footprint := UpperCase(Component.Pattern);
-  Result := (Footprint = 'TESTPOINT_1MM') or
+  CommentText := '';
+  if Component.Comment <> nil then
+    CommentText := UpperCase(Component.Comment.Text);
+  Result := (Pos('TESTPOINT', Footprint) > 0) or
+    (Pos('TESTPOINT', CommentText) > 0) or
+    (Footprint = 'TESTPOINT_1MM') or
     (Footprint = 'TESTPOINT_0.8MM') or
     (Footprint = 'TESTING-PCC_TESTPOINT_1MM');
 end;
@@ -474,6 +540,7 @@ begin
     TextObj := Iterator.FirstPCBObject;
     while TextObj <> nil do
     begin
+      if not ContinueProcessing then Break;
       NextText := Iterator.NextPCBObject;
       if (TextObj.IsDesignator) or (TextObj.UnderlyingString = '.Designator') then
       begin
@@ -503,6 +570,7 @@ begin
     TextObj := Iterator.FirstPCBObject;
     while TextObj <> nil do
     begin
+      if not ContinueProcessing then Break;
       NextText := Iterator.NextPCBObject;
       if not (TextObj.IsDesignator or (TextObj.UnderlyingString = '.Designator')) then
       begin
@@ -532,6 +600,7 @@ begin
     Primitive := Iterator.FirstPCBObject;
     while Primitive <> nil do
     begin
+      if not ContinueProcessing then Break;
       if ((Primitive.ObjectId <> eTextObject) or (not Primitive.IsDesignator)) and
          (Primitive.ObjectId <> eComponentBodyObject) then
       begin
@@ -570,7 +639,8 @@ begin
 end;
 
 // Creates centered designators for all components on the board
-procedure CreateCenteredDesignatorsForAllComponents(TopLayer, BottomLayer: Integer);
+procedure CreateCenteredDesignatorsForAllComponents(TopLayer, BottomLayer: Integer;
+  MirrorBottomDesignators: Boolean);
 var
   Board: IPCB_Board;
   Comp: IPCB_Component;
@@ -596,6 +666,7 @@ begin
     Comp := Iterator.FirstPCBObject;
     while Comp <> nil do
     begin
+    if not ContinueProcessing then Break;
     if IsTestPointComponent(Comp) then
     begin
       Comp := Iterator.NextPCBObject;
@@ -636,15 +707,10 @@ begin
         Designator.Size := TextHeight;
         Designator.Width := StrokeWidth;
         Designator.UseTTFonts := True;
+        if TargetLayer = BottomLayer then
+          Designator.MirrorFlag := MirrorBottomDesignators;
         Designator.TTFInvertedTextJustify := eAutoPos_CenterCenter;
-        case Comp.Rotation of
-          0, 180:   Designator.Rotation := 0;
-          90, 270:  Designator.Rotation := 90;
-          45, 225:  Designator.Rotation := 45;
-          135, 315: Designator.Rotation := 135;
-        else
-          Designator.Rotation := Comp.Rotation;
-        end;
+        Designator.Rotation := Comp.Rotation;
         Designator.XLocation := CenterX;
         Designator.YLocation := CenterY;
       finally
@@ -656,6 +722,7 @@ begin
       AddedToComponent := True;
       ScaleFactor := DESIGNATOR_SHRINK_FACTOR;
       repeat
+        if not ContinueProcessing then Break;
         DesignatorRect := Designator.BoundingRectangle;
         if (DesignatorRect.Left >= CompRect.Left) and
            (DesignatorRect.Right <= CompRect.Right) and
@@ -703,7 +770,7 @@ end;
 
 // Main processing function for all components on the board
 procedure ProcessAllComponents(TopDesignatorLayer, BottomDesignatorLayer,
-  TopAssemblyLayer, BottomAssemblyLayer: Integer);
+  TopAssemblyLayer, BottomAssemblyLayer: Integer; MirrorBottomDesignators: Boolean);
 var
   Board: IPCB_Board;
   Component: IPCB_Component;
@@ -717,6 +784,7 @@ begin
     Exit;
   end;
   DeleteManualTextsOnDesignatorLayers(TopDesignatorLayer, BottomDesignatorLayer);
+  if not ContinueProcessing then Exit;
   Iterator := nil;
   PCBServer.PreProcess;
   try
@@ -728,6 +796,7 @@ begin
       Component := Iterator.FirstPCBObject;
       while Component <> nil do
       begin
+        if not ContinueProcessing then Break;
         if not IsBrusaComponent(Component) then
         begin
           ClearDesignatorsFromSourceLayers(Board, Component);
@@ -749,17 +818,25 @@ begin
   finally
     PCBServer.PostProcess;
   end;
-  CreateCenteredDesignatorsForAllComponents(TopDesignatorLayer, BottomDesignatorLayer);
+  if not ContinueProcessing then Exit;
+  CreateCenteredDesignatorsForAllComponents(TopDesignatorLayer, BottomDesignatorLayer,
+    MirrorBottomDesignators);
+  if not ContinueProcessing then Exit;
   if not SaveCurrentPCB then Exit;
+  if not ContinueProcessing then Exit;
   TargetWidth := MMsToCoord(ASSEMBLY_TRACK_WIDTH_MM);
 
   // Top assembly output layer.
   ProcessTracksOnLayer(TopAssemblyLayer, TargetWidth);
+  if not ContinueProcessing then Exit;
   ProcessArcsOnLayer(TopAssemblyLayer, TargetWidth);
+  if not ContinueProcessing then Exit;
 
   // Bottom assembly output layer.
   ProcessTracksOnLayer(BottomAssemblyLayer, TargetWidth);
+  if not ContinueProcessing then Exit;
   ProcessArcsOnLayer(BottomAssemblyLayer, TargetWidth);
+  if not ContinueProcessing then Exit;
 
   // Save the board
   if not SaveCurrentPCB then Exit;
@@ -774,6 +851,14 @@ var
   TopDesignatorLayer, BottomDesignatorLayer: Integer;
   TopAssemblyLayer, BottomAssemblyLayer: Integer;
 begin
+  if FProcessing then
+  begin
+    StopRequested := True;
+    sourceLibrary_Save.Caption := 'Stopping...';
+    sourceLibrary_Save.Enabled := False;
+    Exit;
+  end;
+
   Board := PCBServer.GetCurrentPCBBoard;
   if Board = nil then
   begin
@@ -839,10 +924,34 @@ begin
     BottomAssemblyLayer := ASSEMBLY_BOTTOM_LAYER;
   end;
 
-  UnlockAllComponents;
-  DeleteOnlyComponentDesignators(TopDesignatorLayer, BottomDesignatorLayer);
-  ProcessAllComponents(TopDesignatorLayer, BottomDesignatorLayer,
-    TopAssemblyLayer, BottomAssemblyLayer);
+  FProcessing := True;
+  StopRequested := False;
+  sourceLibrary_Save.Caption := 'Stop';
+  sourceLibrary_Save.Enabled := True;
+  BrusaHyPowerAG.Enabled := False;
+  LibSelection_Custom.Enabled := False;
+  LibSourceSelection_HyPower_Prod.Enabled := False;
+  LibSourceSelection_HyPower_DBLIB.Enabled := False;
+  LayerGroupBox.Enabled := False;
+  RefreshButton.Enabled := False;
+  try
+    UnlockAllComponents;
+    if not ContinueProcessing then Exit;
+    DeleteOnlyComponentDesignators(TopDesignatorLayer, BottomDesignatorLayer);
+    if not ContinueProcessing then Exit;
+    ProcessAllComponents(TopDesignatorLayer, BottomDesignatorLayer,
+      TopAssemblyLayer, BottomAssemblyLayer, BottomDesignatorMirrorCheckBox.Checked);
+  finally
+    if StopRequested then
+      ShowMessage('Processing stopped. Changes already applied were not rolled back.');
+    FProcessing := False;
+    StopRequested := False;
+    sourceLibrary_Save.Caption := 'Start';
+    BrusaHyPowerAG.Enabled := FBoardReady;
+    LibSelection_Custom.Enabled := FBoardReady;
+    RefreshButton.Enabled := True;
+    UpdateLibraryCheckboxes;
+  end;
 end;
 
 // Unlocks all components on the board to make them movable
@@ -870,6 +979,7 @@ begin
       Comp := Iterator.FirstPCBObject;
       while Comp <> nil do
       begin
+        if not ContinueProcessing then Break;
         WasSelected := Comp.Selected;
         Comp.BeginModify;
         try
@@ -924,6 +1034,7 @@ begin
       TextObj := Iterator.FirstPCBObject;
       while TextObj <> nil do
       begin
+        if not ContinueProcessing then Break;
         // Store next object before potential deletion
         NextObject := Iterator.NextPCBObject;
 
@@ -955,6 +1066,11 @@ begin
   Board.ViewManager_FullUpdate;
   Board.GraphicallyInvalidate;
 
+end;
+
+procedure RunBrusaASM;
+begin
+  Form1.ShowModal;
 end;
 
 end.

@@ -1,8 +1,8 @@
 object Form1: TForm1
   Left = 0
   Top = 0
-  Caption = 'BHyP ASM Layer Editer'
-  ClientHeight = 405
+  Caption = 'BHyP ASM Layer Editer - V1.0.6'
+  ClientHeight = 480
   ClientWidth = 440
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -13,54 +13,14 @@ object Form1: TForm1
   OldCreateOrder = False
   Position = poScreenCenter
   WindowState = wsNormal
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 14
-  object TOP_DES: TLabel
-    Left = 15
-    Top = 245
-    Width = 125
-    Height = 13
-    Caption = 'Top Designator:'
-  end
-  object TOP_ASM: TLabel
-    Left = 15
-    Top = 269
-    Width = 125
-    Height = 13
-    Caption = 'Top Assembly:'
-  end
-  object BOT_DES: TLabel
-    Left = 15
-    Top = 293
-    Width = 125
-    Height = 13
-    Caption = 'Bottom Designator:'
-  end
-  object BOT_ASM: TLabel
-    Left = 15
-    Top = 317
-    Width = 125
-    Height = 13
-    Caption = 'Bottom Assembly:'
-  end
-  object LayerNumbers: TLabel
-    Left = 215
-    Top = 219
-    Width = 120
-    Height = 13
-    Caption = 'Layer Assignments:'
-    Font.Charset = DEFAULT_CHARSET
-    Font.Color = clWindowText
-    Font.Height = -12
-    Font.Name = 'Tahoma'
-    Font.Style = [fsBold]
-    ParentFont = False
-  end
   object SourceGroupBox: TGroupBox
     Left = 15
     Top = 15
     Width = 410
-    Height = 145
+    Height = 180
     Caption = 'Source Library'
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
@@ -68,123 +28,240 @@ object Form1: TForm1
     Font.Name = 'Tahoma'
     Font.Style = [fsBold]
     ParentFont = False
+    object BrusaHyPowerAG: TRadioButton
+      Left = 33
+      Top = 28
+      Width = 250
+      Height = 17
+      Caption = 'Brusa HyPower AG'
+      Font.Style = []
+      ParentFont = False
+      Checked = True
+      TabOrder = 1
+      OnClick = BrusaHyPowerAGClick
+    end
+    object LibSourceSelection_HyPower_Prod: TCheckBox
+      Left = 58
+      Top = 52
+      Width = 220
+      Height = 17
+      Caption = 'BRUSA HYPOWER PROD'
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 6
+      OnClick = LibSourceSelection_HyPower_ProdClick
+    end
+    object LibSourceSelection_HyPower_DBLIB: TCheckBox
+      Left = 58
+      Top = 76
+      Width = 250
+      Height = 17
+      Caption = 'BRUSA_AltiumLib_Database'
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 7
+      OnClick = LibSourceSelection_HyPower_DBLIBClick
+    end
+    object LibSelection_Custom: TRadioButton
+      Left = 33
+      Top = 104
+      Width = 113
+      Height = 17
+      Caption = 'Custom'
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 8
+      OnClick = LibSelection_CustomClick
+    end
+    object sourceLibrary_Save: TButton
+      Left = 167
+      Top = 140
+      Width = 75
+      Height = 25
+      Caption = 'Start'
+      Enabled = False
+      TabOrder = 0
+      OnClick = sourceLibrary_SaveClick
+    end
   end
-  object RefreshButton: TButton
-    Left = 330
-    Top = 28
-    Width = 80
-    Height = 24
-    Caption = 'Refresh'
-    OnClick = RefreshButtonClick
-  end
-  object sourceLibrary_Save: TButton
-    Left = 182
-    Top = 170
-    Width = 75
-    Height = 25
-    Caption = 'Start'
-    TabOrder = 0
-    OnClick = sourceLibrary_SaveClick
-  end
-  object BrusaHyPowerAG: TRadioButton
-    Left = 48
-    Top = 43
-    Width = 250
-    Height = 17
-    Caption = 'Brusa HyPower AG'
-    TabOrder = 1
-    OnClick = BrusaHyPowerAGClick
-  end
-  object topDesignatorSelection_ComboBox: TComboBox
-    Left = 145
-    Top = 243
-    Width = 275
-    Height = 21
-    TabOrder = 2
-    Text = 'Select the relevant layer'
-  end
-  object topAssemblySelection_ComboBox: TComboBox
-    Left = 145
-    Top = 267
-    Width = 275
-    Height = 21
-    TabOrder = 3
-    Text = 'Select the relevant layer'
-  end
-  object bottomDesignatorSelection_ComboBox: TComboBox
-    Left = 145
-    Top = 291
-    Width = 275
-    Height = 21
-    TabOrder = 4
-    Text = 'Select the relevant layer'
-  end
-  object bottomAssemblySelection_ComboBox: TComboBox
-    Left = 145
-    Top = 315
-    Width = 275
-    Height = 21
-    TabOrder = 5
-    Text = 'Select the relevant layer'
-  end
-  object LibSourceSelection_HyPower_Prod: TCheckBox
-    Left = 73
-    Top = 67
-    Width = 220
-    Height = 17
-    Caption = 'BRUSA HYPOWER PROD'
-    TabOrder = 6
-    OnClick = LibSourceSelection_HyPower_ProdClick
-  end
-  object LibSourceSelection_HyPower_DBLIB: TCheckBox
-    Left = 73
-    Top = 91
-    Width = 250
-    Height = 17
-    Caption = 'BRUSA_AltiumLib_Database'
-    TabOrder = 7
-    OnClick = LibSourceSelection_HyPower_DBLIBClick
-  end
-  object LibSelection_Custom: TRadioButton
-    Left = 48
-    Top = 119
-    Width = 113
-    Height = 17
-    Caption = 'Custom'
-    TabOrder = 8
-    OnClick = LibSelection_CustomClick
-  end
-  object ContactInfo: TLabel
-    Left = 70
-    Top = 365
-    Width = 350
-    Height = 18
-    Caption = 'ahmet.talanci@brusahypower.com'
+  object LayerGroupBox: TGroupBox
+    Left = 15
+    Top = 205
+    Width = 410
+    Height = 160
+    Caption = 'Layer Assignments'
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
-    Font.Height = -12
-    Font.Name = 'Tahoma'
-    Font.Style = [fsItalic]
-    ParentFont = False
-  end
-  object ContactLabel: TLabel
-    Left = 15
-    Top = 365
-    Width = 50
-    Height = 18
-    Caption = 'Contact:'
-  end
-  object BoardStatusLabel: TLabel
-    Left = 15
-    Top = 344
-    Width = 410
-    Height = 17
-    Caption = 'Open a PCB document, then click Refresh.'
-    Font.Charset = DEFAULT_CHARSET
-    Font.Color = clGreen
-    Font.Height = -12
+    Font.Height = -13
     Font.Name = 'Tahoma'
     Font.Style = [fsBold]
     ParentFont = False
+    object TOP_DES: TLabel
+      Left = 12
+      Top = 34
+      Width = 125
+      Height = 13
+      Caption = 'Top Designator:'
+      Font.Style = []
+      ParentFont = False
+    end
+    object TOP_ASM: TLabel
+      Left = 12
+      Top = 58
+      Width = 125
+      Height = 13
+      Caption = 'Top Assembly:'
+      Font.Style = []
+      ParentFont = False
+    end
+    object BOT_DES: TLabel
+      Left = 12
+      Top = 82
+      Width = 125
+      Height = 13
+      Caption = 'Bottom Designator:'
+      Font.Style = []
+      ParentFont = False
+    end
+    object BOT_ASM: TLabel
+      Left = 12
+      Top = 106
+      Width = 125
+      Height = 13
+      Caption = 'Bottom Assembly:'
+      Font.Style = []
+      ParentFont = False
+    end
+    object topDesignatorSelection_ComboBox: TComboBox
+      Left = 145
+      Top = 30
+      Width = 250
+      Height = 21
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 2
+      Text = 'Select the relevant layer'
+    end
+    object topAssemblySelection_ComboBox: TComboBox
+      Left = 145
+      Top = 54
+      Width = 250
+      Height = 21
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 3
+      Text = 'Select the relevant layer'
+    end
+    object bottomDesignatorSelection_ComboBox: TComboBox
+      Left = 145
+      Top = 78
+      Width = 250
+      Height = 21
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 4
+      Text = 'Select the relevant layer'
+    end
+    object bottomAssemblySelection_ComboBox: TComboBox
+      Left = 145
+      Top = 102
+      Width = 250
+      Height = 21
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 5
+      Text = 'Select the relevant layer'
+    end
+    object BottomDesignatorMirrorCheckBox: TCheckBox
+      Left = 12
+      Top = 137
+      Width = 370
+      Height = 17
+      Caption = 'Mirror bottom designator text'
+      Checked = True
+      State = cbChecked
+      Font.Style = []
+      ParentFont = False
+      TabOrder = 6
+    end
+  end
+  object BoardStatusGroupBox: TGroupBox
+    Left = 15
+    Top = 370
+    Width = 410
+    Height = 45
+    Caption = 'Active PCB'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -13
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
+    object RefreshButton: TButton
+      Left = 315
+      Top = 14
+      Width = 80
+      Height = 24
+      Caption = 'Refresh'
+      Font.Style = []
+      ParentFont = False
+      OnClick = RefreshButtonClick
+    end
+    object BoardStatusLabel: TLabel
+      Left = 8
+      Top = 17
+      Width = 300
+      Height = 17
+      Caption = 'Open a PCB document, then click Refresh.'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clRed
+      Font.Height = -12
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      ParentFont = False
+    end
+    object BoardFileNameLabel: TLabel
+      Left = 8
+      Top = 17
+      Width = 300
+      Height = 17
+      Caption = ''
+      AutoSize = False
+      Alignment = taCenter
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clGreen
+      Font.Height = -12
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      ParentFont = False
+    end
+  end
+  object ContactGroupBox: TGroupBox
+    Left = 15
+    Top = 420
+    Width = 410
+    Height = 50
+    Caption = 'Contact'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -13
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
+    object ContactInfo: TLabel
+      Left = 8
+      Top = 23
+      Width = 390
+      Height = 18
+      Caption = 'ahmet.talanci@brusahypower.com'
+      AutoSize = False
+      Alignment = taCenter
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -12
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      ParentFont = False
+    end
   end
 end

@@ -67,7 +67,7 @@ GenerateClassCluster=0
 DocumentUniqueId=
 
 [Generic_ScriptingSystem]
-StartProcName=brusaASM.pas>
+StartProcName=brusaASM.pas>RunBrusaASM
 
 [OutputGroup1]
 Name=Netlist Outputs
