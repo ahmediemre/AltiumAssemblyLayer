@@ -251,7 +251,6 @@ begin
     SetBoardReady(False);
     BoardStatusLabel.Caption := 'Open a PCB document, then click Refresh.';
     BoardStatusLabel.Font.Color := clRed;
-    BoardStatusLabel.Font.Style := [];
     ShowMessage('Please open a PCB document first, then click Refresh.');
     Exit;
   end;
