@@ -263,7 +263,6 @@ begin
   else
     BoardStatusLabel.Caption := 'PCB document ready.';
   BoardStatusLabel.Font.Color := clGreen;
-  BoardStatusLabel.Font.Style := [fsBold];
 end;
 
 // Updates the state of library-related checkboxes based on user selection
