@@ -19,6 +19,7 @@ type
     TOP_DES: TLabel;                           						// Top designator layer label
     TOP_ASM: TLabel;                           						// Top assembly layer label
     LayerNumbers: TLabel;                      						// Layer assignments label
+    ContactLabel: TLabel;
     ContactInfo: TLabel;
     topDesignatorSelection_ComboBox: TComboBox; 					// Top designator layer selection
     topAssemblySelection_ComboBox: TComboBox;   					// Top assembly layer selection
@@ -42,7 +43,7 @@ type
     FBoardReady: Boolean;
     procedure UpdateLibraryCheckboxes;          					// Updates UI based on selections
     procedure SetBoardReady(Ready: Boolean);
-    procedure SetCustomLayerLabelsVisible(Visible: Boolean); 		// Toggles custom layer UI
+    procedure SetLayerAssignmentsVisible(Visible: Boolean);
     procedure Toggle_HyPowerLibrary(Selected: string); 				// Manages HyPower library options
     procedure FillAllLayerCombos;              						// Populates layer selection comboboxes
     procedure UnlockAllComponents;             						// Unlocks all PCB components
@@ -212,7 +213,7 @@ begin
   FUpdatingLibrarySource := False;
   FBoardReady := False;
   LibSelection_Custom.Checked := False;
-  SetCustomLayerLabelsVisible(False);
+  SetLayerAssignmentsVisible(False);
   SetBoardReady(False);
   UpdateLibraryCheckboxes;
   RefreshButtonClick(Self);
@@ -226,18 +227,18 @@ begin
   LibSelection_Custom.Enabled := Ready;
   LibSourceSelection_HyPower_Prod.Enabled := Ready and BrusaHyPowerAG.Checked;
   LibSourceSelection_HyPower_DBLIB.Enabled := Ready and BrusaHyPowerAG.Checked;
-  sourceLibrary_Save.Enabled := Ready;
+  sourceLibrary_Save.Enabled := False;
   LayerNumbers.Enabled := Ready;
   TOP_DES.Enabled := Ready;
   TOP_ASM.Enabled := Ready;
   BOT_DES.Enabled := Ready;
   BOT_ASM.Enabled := Ready;
-  topDesignatorSelection_ComboBox.Enabled := Ready;
-  topAssemblySelection_ComboBox.Enabled := Ready;
-  bottomDesignatorSelection_ComboBox.Enabled := Ready;
-  bottomAssemblySelection_ComboBox.Enabled := Ready;
+  topDesignatorSelection_ComboBox.Enabled := False;
+  topAssemblySelection_ComboBox.Enabled := False;
+  bottomDesignatorSelection_ComboBox.Enabled := False;
+  bottomAssemblySelection_ComboBox.Enabled := False;
   BoardStatusLabel.Visible := True;
-  SetCustomLayerLabelsVisible(Ready and LibSelection_Custom.Checked);
+  SetLayerAssignmentsVisible(Ready);
 end;
 
 procedure TForm1.RefreshButtonClick(Sender: TObject);
@@ -249,6 +250,8 @@ begin
   begin
     SetBoardReady(False);
     BoardStatusLabel.Caption := 'Open a PCB document, then click Refresh.';
+    BoardStatusLabel.Font.Color := clRed;
+    BoardStatusLabel.Font.Style := [];
     ShowMessage('Please open a PCB document first, then click Refresh.');
     Exit;
   end;
@@ -260,6 +263,8 @@ begin
     BoardStatusLabel.Caption := 'Active PCB: ' + ExtractFileName(Board.FileName)
   else
     BoardStatusLabel.Caption := 'PCB document ready.';
+  BoardStatusLabel.Font.Color := clGreen;
+  BoardStatusLabel.Font.Style := [fsBold];
 end;
 
 // Updates the state of library-related checkboxes based on user selection
@@ -293,11 +298,19 @@ begin
       FUpdatingLibrarySource := False;
     end;
   end;
-  SetCustomLayerLabelsVisible(FBoardReady and LibSelection_Custom.Checked);
+  topDesignatorSelection_ComboBox.Enabled := FBoardReady and LibSelection_Custom.Checked;
+  topAssemblySelection_ComboBox.Enabled := FBoardReady and LibSelection_Custom.Checked;
+  bottomDesignatorSelection_ComboBox.Enabled := FBoardReady and LibSelection_Custom.Checked;
+  bottomAssemblySelection_ComboBox.Enabled := FBoardReady and LibSelection_Custom.Checked;
+  sourceLibrary_Save.Enabled := FBoardReady and
+    (LibSelection_Custom.Checked or
+     (BrusaHyPowerAG.Checked and
+      (LibSourceSelection_HyPower_Prod.Checked or LibSourceSelection_HyPower_DBLIB.Checked)));
+  SetLayerAssignmentsVisible(FBoardReady);
 end;
 
 // Shows/hides custom layer selection UI elements
-procedure TForm1.SetCustomLayerLabelsVisible(Visible: Boolean);
+procedure TForm1.SetLayerAssignmentsVisible(Visible: Boolean);
 begin
   BOT_DES.Visible := Visible;
   BOT_ASM.Visible := Visible;
@@ -321,6 +334,7 @@ begin
   finally
     FUpdatingLibrarySource := False;
   end;
+  UpdateLibraryCheckboxes;
 end;
 
 // Populates all layer combo boxes with available PCB layers

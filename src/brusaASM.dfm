@@ -155,17 +155,24 @@ object Form1: TForm1
     OnClick = LibSelection_CustomClick
   end
   object ContactInfo: TLabel
-    Left = 15
+    Left = 70
     Top = 365
-    Width = 410
+    Width = 350
     Height = 18
-    Caption = 'Contact: ahmet.talanci@brusahypower.com'
+    Caption = 'ahmet.talanci@brusahypower.com'
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
     Font.Height = -12
     Font.Name = 'Tahoma'
-    Font.Style = [fsBold]
+    Font.Style = [fsItalic]
     ParentFont = False
+  end
+  object ContactLabel: TLabel
+    Left = 15
+    Top = 365
+    Width = 50
+    Height = 18
+    Caption = 'Contact:'
   end
   object BoardStatusLabel: TLabel
     Left = 15
@@ -173,5 +180,11 @@ object Form1: TForm1
     Width = 410
     Height = 17
     Caption = 'Open a PCB document, then click Refresh.'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clGreen
+    Font.Height = -12
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
   end
 end
