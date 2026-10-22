@@ -26,6 +26,8 @@ type
     bottomAssemblySelection_ComboBox: TComboBox; 					// Bottom assembly layer selection
     sourceLib: TLabel;                         						// Library source label
 
+    SourceGroupBox: TGroupBox;
+
     // Event Handlers
     procedure FormCreate(Sender: TObject);      					  // Initializes form
     procedure BrusaHyPowerAGClick(Sender: TObject); 				  // Handles HyPower selection

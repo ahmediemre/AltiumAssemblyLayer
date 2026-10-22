@@ -2,7 +2,7 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'BHyP ASM Layer Editer'
-  ClientHeight = 500
+  ClientHeight = 405
   ClientWidth = 440
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -17,55 +17,61 @@ object Form1: TForm1
   TextHeight = 14
   object TOP_DES: TLabel
     Left = 15
-    Top = 345
+    Top = 245
     Width = 125
     Height = 13
     Caption = 'Top Designator:'
   end
   object TOP_ASM: TLabel
     Left = 15
-    Top = 371
+    Top = 269
     Width = 125
     Height = 13
     Caption = 'Top Assembly:'
   end
   object BOT_DES: TLabel
     Left = 15
-    Top = 394
+    Top = 293
     Width = 125
     Height = 13
     Caption = 'Bottom Designator:'
   end
   object BOT_ASM: TLabel
     Left = 15
-    Top = 417
+    Top = 317
     Width = 125
     Height = 13
     Caption = 'Bottom Assembly:'
   end
   object LayerNumbers: TLabel
     Left = 215
-    Top = 317
+    Top = 219
     Width = 120
     Height = 13
     Caption = 'Layer Assignments:'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -12
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
   end
-  object sourceLib: TLabel
-    Left = 146
-    Top = 29
-    Width = 148
-    Height = 24
+  object SourceGroupBox: TGroupBox
+    Left = 15
+    Top = 15
+    Width = 410
+    Height = 145
     Caption = 'Source Library'
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
-    Font.Height = -20
+    Font.Height = -13
     Font.Name = 'Tahoma'
     Font.Style = [fsBold]
     ParentFont = False
   end
   object sourceLibrary_Save: TButton
     Left = 182
-    Top = 249
+    Top = 170
     Width = 75
     Height = 25
     Caption = 'Start'
@@ -74,8 +80,8 @@ object Form1: TForm1
   end
   object BrusaHyPowerAG: TRadioButton
     Left = 48
-    Top = 61
-    Width = 113
+    Top = 43
+    Width = 250
     Height = 17
     Caption = 'Brusa HyPower AG'
     TabOrder = 1
@@ -83,7 +89,7 @@ object Form1: TForm1
   end
   object topDesignatorSelection_ComboBox: TComboBox
     Left = 145
-    Top = 343
+    Top = 243
     Width = 275
     Height = 21
     TabOrder = 2
@@ -91,7 +97,7 @@ object Form1: TForm1
   end
   object topAssemblySelection_ComboBox: TComboBox
     Left = 145
-    Top = 367
+    Top = 267
     Width = 275
     Height = 21
     TabOrder = 3
@@ -99,7 +105,7 @@ object Form1: TForm1
   end
   object bottomDesignatorSelection_ComboBox: TComboBox
     Left = 145
-    Top = 391
+    Top = 291
     Width = 275
     Height = 21
     TabOrder = 4
@@ -107,7 +113,7 @@ object Form1: TForm1
   end
   object bottomAssemblySelection_ComboBox: TComboBox
     Left = 145
-    Top = 415
+    Top = 315
     Width = 275
     Height = 21
     TabOrder = 5
@@ -115,7 +121,7 @@ object Form1: TForm1
   end
   object LibSourceSelection_HyPower_Prod: TCheckBox
     Left = 73
-    Top = 83
+    Top = 67
     Width = 220
     Height = 17
     Caption = 'BRUSA HYPOWER PROD'
@@ -124,7 +130,7 @@ object Form1: TForm1
   end
   object LibSourceSelection_HyPower_DBLIB: TCheckBox
     Left = 73
-    Top = 107
+    Top = 91
     Width = 250
     Height = 17
     Caption = 'BRUSA_AltiumLib_Database'
@@ -133,7 +139,7 @@ object Form1: TForm1
   end
   object LibSelection_Custom: TRadioButton
     Left = 48
-    Top = 227
+    Top = 119
     Width = 113
     Height = 17
     Caption = 'Custom'
@@ -142,9 +148,15 @@ object Form1: TForm1
   end
   object ContactInfo: TLabel
     Left = 15
-    Top = 465
+    Top = 365
     Width = 410
     Height = 18
     Caption = 'Contact: ahmet.talanci@brusahypower.com'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -12
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
   end
 end
