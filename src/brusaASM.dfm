@@ -2,18 +2,19 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'ASMGerberLayerCreation'
-  ClientHeight = 872
-  ClientWidth = 916
+  ClientHeight = 470
+  ClientWidth = 340
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
-  Font.Height = -11
+  Font.Height = -12
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
-  WindowState = wsMaximized
+  Position = poScreenCenter
+  WindowState = wsNormal
   PixelsPerInch = 96
-  TextHeight = 13
+  TextHeight = 14
   object TOP_DES: TLabel
     Left = 11
     Top = 345
@@ -50,7 +51,7 @@ object Form1: TForm1
     Caption = 'Layer Numbers:'
   end
   object sourceLib: TLabel
-    Left = 114
+    Left = 96
     Top = 29
     Width = 148
     Height = 24
